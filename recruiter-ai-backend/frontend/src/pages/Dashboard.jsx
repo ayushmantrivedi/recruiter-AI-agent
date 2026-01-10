@@ -1,13 +1,21 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useLeadStore } from '../store/leadStore'
-import { Play, Target, TrendingUp, Clock } from 'lucide-react'
-import LeadTable from '../components/LeadTable'
-
 function Dashboard() {
-  const { leads, fetchLeads, loading } = useLeadStore()
+  const recruiterId = localStorage.getItem('recruiter_id')
 
-  useEffect(() => {
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Dashboard</h1>
+      <p>Welcome! Your Recruiter ID: {recruiterId}</p>
+      <div>
+        <a href="/run-agent" style={{ marginRight: '10px' }}>Run AI Agent</a>
+        <button onClick={() => { localStorage.removeItem('recruiter_id'); window.location.href = '/login'; }}>
+          Logout
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default Dashboard
     fetchLeads({ limit: 10 })
   }, [fetchLeads])
 

@@ -49,7 +49,8 @@ const useLeadStore = create((set, get) => ({
   runAgentQuery: async (query) => {
     try {
       set({ loading: true, error: null })
-      const response = await agentAPI.runQuery(query)
+      const recruiterId = localStorage.getItem('recruiter_id')
+      const response = await agentAPI.runQuery(query, recruiterId)
 
       // Add to agent runs
       const runs = get().agentRuns

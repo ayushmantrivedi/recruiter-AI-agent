@@ -8,6 +8,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Immediate test to verify JavaScript is working
+      console.log('HTML script executing immediately');
+      document.body.style.backgroundColor = '#f0f0f0';
+      const statusDiv = document.createElement('div');
+      statusDiv.id = 'status';
+      statusDiv.innerHTML = '<p style="color: blue;">JavaScript loaded - waiting for React...</p>';
+      document.body.insertBefore(statusDiv, document.getElementById('root'));
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -4,8 +4,21 @@ import { authAPI } from '../api/auth'
 const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
-  loading: true,
+  loading: false, // Start as false since we're not using JWT auth
   error: null,
+
+  // Check if user is authenticated (either by token or recruiter_id)
+  isAuthenticated: () => {
+    const hasUser = get().user !== null
+    const hasRecruiterId = localStorage.getItem('recruiter_id') !== null
+    console.log('Auth check - hasUser:', hasUser, 'hasRecruiterId:', hasRecruiterId)
+    return hasUser || hasRecruiterId
+  },
+
+  // Force re-render by updating state
+  refreshAuth: () => {
+    set((state) => ({ ...state }))
+  },
 
   login: async (email, password) => {
     try {
