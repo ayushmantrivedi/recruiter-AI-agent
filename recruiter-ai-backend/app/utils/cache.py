@@ -2,6 +2,9 @@ import json
 import redis.asyncio as redis
 from typing import Any, Optional, Dict, List
 from ..config import settings
+from .logger import get_logger
+
+logger = get_logger("cache")
 
 
 class RedisCache:
@@ -12,11 +15,24 @@ class RedisCache:
 
     async def connect(self):
         """Initialize Redis connection."""
+        logger.info("Connecting to Redis", redis_url=settings.redis.url)
         self.redis = redis.from_url(
             settings.redis.url,
             encoding="utf-8",
             decode_responses=True
         )
+
+    async def ping(self) -> bool:
+        """Test Redis connection with ping."""
+        try:
+            if not self.redis:
+                await self.connect()
+            await self.redis.ping()
+            logger.info("Redis connection successful")
+            return True
+        except Exception as e:
+            logger.warning("Redis connection failed, running without cache", error=str(e))
+            return False
 
     async def disconnect(self):
         """Close Redis connection."""
@@ -25,6 +41,8 @@ class RedisCache:
 
     async def set(self, key: str, value: Any, ttl: int = None):
         """Set a cache value."""
+        if not self.redis:
+            return  # Silently skip if Redis not available
         serialized_value = json.dumps(value) if not isinstance(value, str) else value
         if ttl:
             await self.redis.setex(key, ttl, serialized_value)
@@ -33,6 +51,8 @@ class RedisCache:
 
     async def get(self, key: str) -> Optional[Any]:
         """Get a cache value."""
+        if not self.redis:
+            return None  # Return None if Redis not available
         value = await self.redis.get(key)
         if value:
             try:

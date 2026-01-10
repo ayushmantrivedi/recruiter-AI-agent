@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 import asyncio
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from .config import settings
 from .database import create_tables
@@ -24,15 +25,22 @@ async def lifespan(app: FastAPI):
     """Application lifespan context manager."""
     # Startup
     logger.info("Starting Recruiter AI Platform")
+    logger.info("Configuration loaded", database_url=settings.database.url, redis_url=settings.redis.url)
 
     try:
         # Initialize database
+        from .database import test_db_connection
+        if not test_db_connection():
+            raise Exception("Database connection failed")
         create_tables()
         logger.info("Database tables created/verified")
 
-        # Initialize Redis cache
+        # Initialize Redis cache (optional)
         await cache.connect()
-        logger.info("Redis cache connected")
+        if await cache.ping():
+            logger.info("Redis cache connected")
+        else:
+            logger.warning("Redis cache not available, running without caching")
 
         # Initialize pipeline and agents
         await recruiter_pipeline.initialize()
@@ -151,7 +159,26 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(recruiter_router)
 from .routes.auth import router as auth_router
 app.include_router(auth_router)
-app.include_router(auth_router)
+
+
+# Health endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    from .database import test_db_connection
+    from .utils.cache import cache
+
+    db_status = "connected" if test_db_connection(max_retries=1) else "disconnected"
+    redis_status = "connected" if await cache.ping() else "disconnected"
+
+    status = "ok" if db_status == "connected" and redis_status == "connected" else "error"
+
+    return {
+        "status": status,
+        "db": db_status,
+        "redis": redis_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 # Root endpoint

@@ -2,10 +2,15 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
+    database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
     host: str = Field(default="localhost", env="DB_HOST")
     port: int = Field(default=5432, env="DB_PORT")
     name: str = Field(default="recruiter_ai", env="DB_NAME")
@@ -14,11 +19,14 @@ class DatabaseSettings(BaseSettings):
 
     @property
     def url(self) -> str:
+        if self.database_url:
+            return self.database_url
         return f"postgresql://{self.user}:{self.password.get_secret_value()}@{self.host}:{self.port}/{self.name}"
 
 
 class RedisSettings(BaseSettings):
     """Redis configuration settings."""
+    redis_url: Optional[str] = Field(default=None, env="REDIS_URL")
     host: str = Field(default="localhost", env="REDIS_HOST")
     port: int = Field(default=6379, env="REDIS_PORT")
     db: int = Field(default=0, env="REDIS_DB")
@@ -26,6 +34,8 @@ class RedisSettings(BaseSettings):
 
     @property
     def url(self) -> str:
+        if self.redis_url:
+            return self.redis_url
         auth = f":{self.password.get_secret_value()}@" if self.password else ""
         return f"redis://{auth}{self.host}:{self.port}/{self.db}"
 
@@ -104,6 +114,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 # Global settings instance

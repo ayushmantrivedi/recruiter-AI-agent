@@ -1,8 +1,12 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON, Boolean, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, text
 from .config import settings
+from .utils.logger import get_logger
+import time
+
+logger = get_logger("database")
 
 # Create database engine
 engine = create_engine(
@@ -71,8 +75,8 @@ class Query(Base):
     """Recruiter search query model."""
     __tablename__ = "queries"
 
-    id = Column(Integer, primary_key=True, index=True)
-    recruiter_id = Column(Integer, ForeignKey("recruiters.id"), nullable=False)
+    id = Column(String(36), primary_key=True, index=True)
+    recruiter_id = Column(Integer, ForeignKey("recruiters.id"), nullable=True)
     query_text = Column(Text, nullable=False)
 
     # Agent processing results
@@ -99,7 +103,7 @@ class Lead(Base):
     __tablename__ = "leads"
 
     id = Column(Integer, primary_key=True, index=True)
-    query_id = Column(Integer, ForeignKey("queries.id"), nullable=False)
+    query_id = Column(String(36), ForeignKey("queries.id"), nullable=False)
 
     # Company information
     company_name = Column(String(255), nullable=False)
@@ -137,7 +141,7 @@ class AgentExecution(Base):
     __tablename__ = "agent_executions"
 
     id = Column(Integer, primary_key=True, index=True)
-    query_id = Column(Integer, ForeignKey("queries.id"), nullable=False)
+    query_id = Column(String(36), ForeignKey("queries.id"), nullable=False)
 
     # Execution details
     step_number = Column(Integer, nullable=False)
@@ -210,7 +214,7 @@ class BillingRecord(Base):
     currency = Column(String(3), default="USD")
 
     # Related entities
-    query_id = Column(Integer, ForeignKey("queries.id"))
+    query_id = Column(String(36), ForeignKey("queries.id"))
     lead_id = Column(Integer, ForeignKey("leads.id"))
 
     # Stripe/payment details
@@ -223,6 +227,54 @@ class BillingRecord(Base):
     recruiter = relationship("Recruiter")
 
 
+def test_db_connection(max_retries: int = 3, retry_delay: float = 2.0) -> bool:
+    """Test database connection with retry logic."""
+    for attempt in range(max_retries):
+        try:
+            logger.info("Testing database connection",
+                       attempt=attempt + 1,
+                       max_retries=max_retries,
+                       database_url=settings.database.url.replace(settings.database.password.get_secret_value() if settings.database.password else "", "***"))
+
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                conn.commit()
+
+            logger.info("Database connection successful")
+            return True
+
+        except Exception as e:
+            logger.warning("Database connection attempt failed",
+                         attempt=attempt + 1,
+                         error=str(e))
+            if attempt < max_retries - 1:
+                logger.info("Retrying database connection",
+                          attempt=attempt + 1,
+                          retry_delay=retry_delay)
+                time.sleep(retry_delay)
+            else:
+                logger.error("Database connection failed after all retries",
+                           max_retries=max_retries,
+                           error=str(e))
+                return False
+
+
+def create_tables():
+    """Create all database tables with connection validation."""
+    logger.info("Creating database tables")
+
+    # First test connection
+    if not test_db_connection():
+        raise Exception("Cannot create tables: database connection failed")
+
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error("Failed to create database tables", error=str(e))
+        raise
+
+
 # Database dependency
 def get_db():
     """Database session dependency for FastAPI."""
@@ -231,8 +283,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def create_tables():
-    """Create all database tables."""
-    Base.metadata.create_all(bind=engine)

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Tuple
 from datetime import datetime, timedelta
 import re
 from ..config import settings

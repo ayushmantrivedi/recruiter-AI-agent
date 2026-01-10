@@ -25,7 +25,7 @@ class RecruiterPipeline:
         await self.concept_reasoner.initialize()
         logger.info("Recruiter pipeline initialized")
 
-    async def process_recruiter_query(self, recruiter_query: str, recruiter_id: str = None) -> Dict[str, Any]:
+    async def process_recruiter_query(self, recruiter_query: str, recruiter_id: str = None, query_id: str = None) -> Dict[str, Any]:
         """Process a complete recruiter query through all agents.
 
         Args:
@@ -35,7 +35,10 @@ class RecruiterPipeline:
         Returns:
             Complete processing results with leads
         """
-        query_id = str(uuid.uuid4())
+        # Use provided query_id or generate new one
+        if query_id is None:
+            query_id = str(uuid.uuid4())
+
         start_time = datetime.utcnow()
 
         try:
@@ -100,6 +103,20 @@ class RecruiterPipeline:
                         query_id=query_id,
                         query=recruiter_query)
 
+            # Update database status to failed
+            try:
+                db = SessionLocal()
+                query_record = db.query(Query).filter(Query.id == query_id).first()
+                if query_record:
+                    query_record.processing_status = "failed"
+                    query_record.execution_time = (datetime.utcnow() - start_time).total_seconds()
+                    db.commit()
+                db.close()
+            except Exception as db_error:
+                logger.error("Failed to update job status to failed",
+                            error=str(db_error),
+                            query_id=query_id)
+
             # Return error result
             return {
                 "query_id": query_id,
@@ -116,20 +133,33 @@ class RecruiterPipeline:
         try:
             db = SessionLocal()
             try:
-                # Save main query
-                query = Query(
-                    id=result["query_id"],
-                    recruiter_id=result.get("recruiter_id"),
-                    query_text=result["original_query"],
-                    concept_vector=result["concept_vector"],
-                    constraints=result["constraints"],
-                    confidence_score=result["orchestration_summary"]["confidence"],
-                    processing_status="completed",
-                    total_cost=result["orchestration_summary"]["total_cost"],
-                    execution_time=result["processing_time"],
-                    completed_at=datetime.utcnow()
-                )
-                db.add(query)
+                # Update existing query record
+                query = db.query(Query).filter(Query.id == result["query_id"]).first()
+                if query:
+                    # Update the existing record
+                    query.concept_vector = result["concept_vector"]
+                    query.constraints = result["constraints"]
+                    query.confidence_score = result["orchestration_summary"]["confidence"]
+                    query.processing_status = "completed"
+                    query.total_cost = result["orchestration_summary"]["total_cost"]
+                    query.execution_time = result["processing_time"]
+                    query.completed_at = datetime.utcnow()
+                else:
+                    # Fallback: create new record if not found (shouldn't happen)
+                    logger.warning("Query record not found, creating new one", query_id=result["query_id"])
+                    query = Query(
+                        id=result["query_id"],
+                        recruiter_id=result.get("recruiter_id"),
+                        query_text=result["original_query"],
+                        concept_vector=result["concept_vector"],
+                        constraints=result["constraints"],
+                        confidence_score=result["orchestration_summary"]["confidence"],
+                        processing_status="completed",
+                        total_cost=result["orchestration_summary"]["total_cost"],
+                        execution_time=result["processing_time"],
+                        completed_at=datetime.utcnow()
+                    )
+                    db.add(query)
 
                 # Save leads
                 for lead_data in result["leads"]:
@@ -158,15 +188,21 @@ class RecruiterPipeline:
     async def get_query_status(self, query_id: str) -> Optional[Dict[str, Any]]:
         """Get the status and results of a query."""
         try:
+            logger.info("Pipeline get_query_status called", query_id=query_id)
+
             # Check cache first
             cached_result = await cache.get(f"query_result:{query_id}")
             if cached_result:
+                logger.info("Found cached result", query_id=query_id)
                 return cached_result
 
             # Check database
             db = SessionLocal()
             try:
+                logger.info("Querying database", query_id=query_id)
                 query = db.query(Query).filter(Query.id == query_id).first()
+                logger.info("Database query result", query_id=query_id, found=query is not None)
+
                 if not query:
                     return None
 
@@ -217,12 +253,11 @@ class RecruiterPipeline:
                 lead_count = db.query(Lead).join(Query).filter(Query.recruiter_id == recruiter_id).count()
 
                 # Average scores
-                avg_score_query = db.query(Lead.score).join(Query).filter(Query.recruiter_id == recruiter_id)
-                avg_score = db.session.execute(avg_score_query).scalar() or 0.0
+                from sqlalchemy import func
+                avg_score = db.query(func.avg(Lead.score)).join(Query).filter(Query.recruiter_id == recruiter_id).scalar() or 0.0
 
                 # Total cost
-                total_cost_query = db.query(Query.total_cost).filter(Query.recruiter_id == recruiter_id)
-                total_cost = db.session.execute(total_cost_query).scalar() or 0.0
+                total_cost = db.query(func.sum(Query.total_cost)).filter(Query.recruiter_id == recruiter_id).scalar() or 0.0
 
                 return {
                     "recruiter_id": recruiter_id,

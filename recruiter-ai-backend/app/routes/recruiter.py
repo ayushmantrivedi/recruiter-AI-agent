@@ -3,8 +3,9 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import asyncio
+import uuid
 from ..services.pipeline import recruiter_pipeline
-from ..database import get_db
+from ..database import get_db, SessionLocal, Query
 from ..config import settings
 from ..utils.logger import get_logger
 
@@ -79,24 +80,51 @@ async def process_recruiter_query(
     Returns immediately with query ID for status polling, or complete results if fast.
     """
     try:
+        # Generate a unique query ID
+        query_id = str(uuid.uuid4())
+
         # For very short queries, process synchronously
         if len(request.query.split()) <= 3:
             result = await recruiter_pipeline.process_recruiter_query(
                 request.query,
-                request.recruiter_id
+                request.recruiter_id,
+                query_id=query_id  # Pass the query_id
             )
             return QueryResponse(**result)
 
-        # For longer queries, process in background
+        # For longer queries, insert into database immediately with processing status
+        try:
+            # Insert new query record
+            query_record = Query(
+                id=query_id,
+                recruiter_id=request.recruiter_id,
+                query_text=request.query,
+                processing_status="processing",
+                created_at=datetime.utcnow()
+            )
+            db.add(query_record)
+            db.commit()
+
+            logger.info("Job created and queued for processing",
+                       query_id=query_id,
+                       recruiter_id=request.recruiter_id,
+                       query=request.query)
+
+        except Exception as db_error:
+            logger.error("Failed to create job record", error=str(db_error), query_id=query_id)
+            raise HTTPException(status_code=500, detail="Failed to queue job")
+
+        # Process in background with the generated query_id
         background_tasks.add_task(
             process_query_background,
+            query_id,
             request.query,
             request.recruiter_id
         )
 
-        # Return pending status immediately
+        # Return processing status with real query ID
         return QueryResponse(
-            query_id="pending",
+            query_id=query_id,
             status="processing",
             original_query=request.query,
             leads=[],
@@ -108,12 +136,30 @@ async def process_recruiter_query(
         raise HTTPException(status_code=500, detail=f"Query processing failed: {str(e)}")
 
 
-async def process_query_background(query: str, recruiter_id: str = None):
+async def process_query_background(query_id: str, query: str, recruiter_id: str = None):
     """Background task to process recruiter queries."""
+    logger.info("BACKGROUND TASK STARTED", query_id=query_id, query=query, recruiter_id=recruiter_id)
     try:
-        await recruiter_pipeline.process_recruiter_query(query, recruiter_id)
+        logger.info("Starting background query processing", query_id=query_id, query=query)
+        await recruiter_pipeline.process_recruiter_query(query, recruiter_id, query_id=query_id)
+        logger.info("Background query processing completed", query_id=query_id)
     except Exception as e:
-        logger.error("Background query processing failed", error=str(e), query=query)
+        logger.error("Background query processing failed",
+                    error=str(e),
+                    query_id=query_id,
+                    query=query)
+        # Update status to failed in database
+        try:
+            db = SessionLocal()
+            query_record = db.query(Query).filter(Query.id == query_id).first()
+            if query_record:
+                query_record.processing_status = "failed"
+                db.commit()
+            db.close()
+        except Exception as db_error:
+            logger.error("Failed to update job status to failed",
+                        error=str(db_error),
+                        query_id=query_id)
 
 
 @router.get("/query/{query_id}", response_model=QueryResponse)
@@ -124,9 +170,12 @@ async def get_query_results(query_id: str):
     or current status if still processing.
     """
     try:
+        logger.info("Getting query status", query_id=query_id)
         result = await recruiter_pipeline.get_query_status(query_id)
+        logger.info("Pipeline result", query_id=query_id, result=result)
 
         if not result:
+            logger.error("Query not found in pipeline", query_id=query_id)
             raise HTTPException(status_code=404, detail="Query not found")
 
         return QueryResponse(**result)
