@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -19,6 +19,86 @@ class QueryRequest(BaseModel):
     """Request model for recruiter query."""
     query: str = Field(..., description="Recruiter search query", min_length=3, max_length=500)
     recruiter_id: Optional[str] = Field(None, description="Optional recruiter identifier")
+
+
+class NormalizedQuery:
+    """Normalized internal query object for pipeline consistency."""
+    def __init__(self, query: str, recruiter_id: Optional[str] = None):
+        self.query = query
+        self.recruiter_id = recruiter_id
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "NormalizedQuery":
+        """Create from dictionary input."""
+        query = data.get("query")
+        recruiter_id = data.get("recruiter_id")
+
+        if not query:
+            raise ValueError("query field is required")
+        if len(query.strip()) < 3:
+            raise ValueError("query must be at least 3 characters")
+        if len(query.strip()) > 500:
+            raise ValueError("query must be at most 500 characters")
+
+        return cls(query=query.strip(), recruiter_id=recruiter_id)
+
+    @classmethod
+    def from_request(cls, request: QueryRequest) -> "NormalizedQuery":
+        """Create from Pydantic request model."""
+        return cls(query=request.query, recruiter_id=request.recruiter_id)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for backward compatibility."""
+        return {
+            "query": self.query,
+            "recruiter_id": self.recruiter_id
+        }
+
+
+async def parse_query_input(request: Request) -> NormalizedQuery:
+    """Parse query input from either JSON or form-encoded data."""
+    content_type = request.headers.get("content-type", "").lower()
+
+    try:
+        if "application/json" in content_type:
+            # Parse JSON input
+            data = await request.json()
+            logger.info("Parsed JSON input", content_type=content_type)
+        elif "application/x-www-form-urlencoded" in content_type:
+            # Parse form input
+            form_data = await request.form()
+            data = {
+                "query": form_data.get("query"),
+                "recruiter_id": form_data.get("recruiter_id")
+            }
+            logger.info("Parsed form input", content_type=content_type)
+        else:
+            # Try JSON first, fallback to form
+            try:
+                data = await request.json()
+                logger.info("Parsed fallback JSON input", content_type=content_type)
+            except Exception:
+                form_data = await request.form()
+                data = {
+                    "query": form_data.get("query"),
+                    "recruiter_id": form_data.get("recruiter_id")
+                }
+                logger.info("Parsed fallback form input", content_type=content_type)
+
+        # Validate and normalize
+        normalized = NormalizedQuery.from_dict(data)
+        logger.info("Input normalized successfully",
+                   query_length=len(normalized.query),
+                   has_recruiter_id=normalized.recruiter_id is not None)
+
+        return normalized
+
+    except ValueError as e:
+        logger.error("Input validation failed", error=str(e), content_type=content_type)
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
+    except Exception as e:
+        logger.error("Input parsing failed", error=str(e), content_type=content_type)
+        raise HTTPException(status_code=400, detail="Invalid request format. Expected JSON or form data.")
 
 
 class QueryResponse(BaseModel):
@@ -66,7 +146,7 @@ class RecruiterStatsResponse(BaseModel):
 
 @router.post("/query", response_model=QueryResponse)
 async def process_recruiter_query(
-    request: QueryRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db=Depends(get_db)
 ):
@@ -77,17 +157,22 @@ async def process_recruiter_query(
     2. Action Orchestrator (gathers evidence from multiple APIs)
     3. Signal Judge (scores and ranks company leads)
 
+    Supports both JSON and form-encoded input for compatibility with different clients.
+
     Returns immediately with query ID for status polling, or complete results if fast.
     """
     try:
+        # Parse and validate input from either JSON or form data
+        normalized_query = await parse_query_input(request)
+
         # Generate a unique query ID
         query_id = str(uuid.uuid4())
 
         # For very short queries, process synchronously
-        if len(request.query.split()) <= 3:
+        if len(normalized_query.query.split()) <= 3:
             result = await recruiter_pipeline.process_recruiter_query(
-                request.query,
-                request.recruiter_id,
+                normalized_query.query,
+                normalized_query.recruiter_id,
                 query_id=query_id  # Pass the query_id
             )
             return QueryResponse(**result)
@@ -97,8 +182,8 @@ async def process_recruiter_query(
             # Insert new query record
             query_record = Query(
                 id=query_id,
-                recruiter_id=request.recruiter_id,
-                query_text=request.query,
+                recruiter_id=normalized_query.recruiter_id,
+                query_text=normalized_query.query,
                 processing_status="processing",
                 created_at=datetime.utcnow()
             )
@@ -107,59 +192,231 @@ async def process_recruiter_query(
 
             logger.info("Job created and queued for processing",
                        query_id=query_id,
-                       recruiter_id=request.recruiter_id,
-                       query=request.query)
+                       recruiter_id=normalized_query.recruiter_id,
+                       query=normalized_query.query)
 
         except Exception as db_error:
-            logger.error("Failed to create job record", error=str(db_error), query_id=query_id)
+            logger.error("Failed to create job record",
+                        error=str(db_error),
+                        query_id=query_id,
+                        recruiter_id=normalized_query.recruiter_id,
+                        query=normalized_query.query)
             raise HTTPException(status_code=500, detail="Failed to queue job")
 
         # Process in background with the generated query_id
         background_tasks.add_task(
             process_query_background,
             query_id,
-            request.query,
-            request.recruiter_id
+            normalized_query.query,
+            normalized_query.recruiter_id
         )
 
         # Return processing status with real query ID
         return QueryResponse(
             query_id=query_id,
             status="processing",
-            original_query=request.query,
+            original_query=normalized_query.query,
             leads=[],
             total_leads_found=0
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error("Query processing failed", error=str(e), query=request.query)
+        logger.error("Query processing failed",
+                    error=str(e),
+                    query=getattr(normalized_query, 'query', 'unknown') if 'normalized_query' in locals() else 'unknown')
         raise HTTPException(status_code=500, detail=f"Query processing failed: {str(e)}")
 
 
 async def process_query_background(query_id: str, query: str, recruiter_id: str = None):
-    """Background task to process recruiter queries."""
-    logger.info("BACKGROUND TASK STARTED", query_id=query_id, query=query, recruiter_id=recruiter_id)
+    """Background task to process recruiter queries with comprehensive error handling and timeouts."""
+    import asyncio
+    import traceback
+
+    # Job lifecycle constants
+    JOB_TIMEOUT_SECONDS = 300  # 5 minutes max per job
+    MAX_RETRIES = 3
+    RETRY_DELAY_BASE = 2  # seconds
+
+    logger.info("🔄 JOB_CREATED", query_id=query_id, query=query, recruiter_id=recruiter_id)
+
+    # Update job status to processing (double-check)
+    db_session = None
     try:
-        logger.info("Starting background query processing", query_id=query_id, query=query)
-        await recruiter_pipeline.process_recruiter_query(query, recruiter_id, query_id=query_id)
-        logger.info("Background query processing completed", query_id=query_id)
+        db_session = SessionLocal()
+        query_record = db_session.query(Query).filter(Query.id == query_id).first()
+        if query_record and query_record.processing_status == "pending":
+            query_record.processing_status = "processing"
+            db_session.commit()
+            logger.info("📝 JOB_STATUS_UPDATED_TO_PROCESSING", query_id=query_id)
+        elif query_record:
+            logger.warning("⚠️ JOB_ALREADY_IN_PROCESSING", query_id=query_id, status=query_record.processing_status)
+        db_session.close()
+        db_session = None
+    except Exception as db_error:
+        logger.error("❌ FAILED_TO_UPDATE_JOB_STATUS",
+                    error=str(db_error),
+                    query_id=query_id,
+                    traceback=traceback.format_exc())
+        if db_session:
+            try:
+                db_session.close()
+            except:
+                pass
+        return
+
+    # Execute job with timeout and retry logic
+    for attempt in range(MAX_RETRIES):
+        try:
+            logger.info("🚀 JOB_STARTED",
+                       query_id=query_id,
+                       attempt=attempt + 1,
+                       max_attempts=MAX_RETRIES)
+
+            # Execute pipeline with timeout
+            await asyncio.wait_for(
+                _execute_pipeline_with_checkpoint(query_id, query, recruiter_id),
+                timeout=JOB_TIMEOUT_SECONDS
+            )
+
+            logger.info("✅ JOB_COMPLETED_SUCCESSFULLY", query_id=query_id, attempt=attempt + 1)
+            return
+
+        except asyncio.TimeoutError:
+            logger.error("⏰ JOB_TIMEOUT_EXCEEDED",
+                        query_id=query_id,
+                        attempt=attempt + 1,
+                        timeout_seconds=JOB_TIMEOUT_SECONDS)
+
+            # Mark as failed due to timeout
+            _mark_job_failed(query_id, f"Job timed out after {JOB_TIMEOUT_SECONDS} seconds")
+
+            # Don't retry timeouts
+            return
+
+        except Exception as e:
+            logger.error("💥 JOB_EXECUTION_FAILED",
+                        error=str(e),
+                        query_id=query_id,
+                        attempt=attempt + 1,
+                        traceback=traceback.format_exc())
+
+            # On final attempt, mark as failed
+            if attempt == MAX_RETRIES - 1:
+                _mark_job_failed(query_id, f"Job failed after {MAX_RETRIES} attempts: {str(e)}")
+                logger.error("❌ JOB_FAILED_PERMANENTLY",
+                           query_id=query_id,
+                           final_error=str(e))
+                return
+
+            # Exponential backoff for retries
+            retry_delay = RETRY_DELAY_BASE * (2 ** attempt)
+            logger.info("🔄 JOB_RETRY_SCHEDULED",
+                       query_id=query_id,
+                       attempt=attempt + 1,
+                       delay_seconds=retry_delay)
+
+            await asyncio.sleep(retry_delay)
+
+
+async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter_id: str = None):
+    """Execute pipeline with detailed checkpoints."""
+    import traceback
+
+    logger.info("🔍 PIPELINE_STARTED", query_id=query_id)
+
+    try:
+        # Step 1: Concept Reasoning
+        logger.info("🧠 STEP_1_CONCEPT_REASONING_STARTED", query_id=query_id)
+        concept_result = await recruiter_pipeline.concept_reasoner.process_query(query, recruiter_id)
+        logger.info("🧠 STEP_1_CONCEPT_REASONING_COMPLETED",
+                   query_id=query_id,
+                   concept_vector_length=len(concept_result.get("concept_vector", {})))
+
+        # Step 2: Action Orchestration
+        logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_STARTED", query_id=query_id)
+        orchestration_result = await recruiter_pipeline.action_orchestrator.orchestrate_search(
+            query_id,
+            concept_result["concept_vector"],
+            concept_result["constraints"]
+        )
+        logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_COMPLETED",
+                   query_id=query_id,
+                   total_steps=orchestration_result.get("total_steps", 0),
+                   total_cost=orchestration_result.get("total_cost", 0))
+
+        # Step 3: Signal Judgment
+        logger.info("⚖️ STEP_3_SIGNAL_JUDGMENT_STARTED", query_id=query_id)
+        leads = await recruiter_pipeline.signal_judge.judge_leads(
+            query_id,
+            orchestration_result["evidence_objects"],
+            concept_result["constraints"]
+        )
+        logger.info("⚖️ STEP_3_SIGNAL_JUDGMENT_COMPLETED",
+                   query_id=query_id,
+                   leads_found=len(leads))
+
+        # Step 4: Database Save
+        logger.info("💾 STEP_4_DATABASE_SAVE_STARTED", query_id=query_id)
+        await recruiter_pipeline._save_to_database({
+            "query_id": query_id,
+            "recruiter_id": recruiter_id,
+            "original_query": query,
+            "processing_time": 0,  # Will be updated by pipeline
+            "concept_vector": concept_result["concept_vector"],
+            "constraints": concept_result["constraints"],
+            "orchestration_summary": {
+                "confidence": orchestration_result["confidence"],
+                "total_steps": orchestration_result["total_steps"],
+                "total_cost": orchestration_result["total_cost"],
+                "evidence_count": len(orchestration_result["evidence_objects"])
+            },
+            "leads": leads[:20],  # Limit to top 20 leads
+            "total_leads_found": len(leads),
+            "status": "completed",
+            "completed_at": datetime.utcnow().isoformat()
+        })
+        logger.info("💾 STEP_4_DATABASE_SAVE_COMPLETED", query_id=query_id)
+
+        logger.info("🎉 PIPELINE_COMPLETED_SUCCESSFULLY", query_id=query_id)
+
     except Exception as e:
-        logger.error("Background query processing failed",
+        logger.error("💥 PIPELINE_EXECUTION_FAILED",
                     error=str(e),
                     query_id=query_id,
-                    query=query)
-        # Update status to failed in database
-        try:
-            db = SessionLocal()
-            query_record = db.query(Query).filter(Query.id == query_id).first()
-            if query_record:
-                query_record.processing_status = "failed"
-                db.commit()
-            db.close()
-        except Exception as db_error:
-            logger.error("Failed to update job status to failed",
-                        error=str(db_error),
-                        query_id=query_id)
+                    traceback=traceback.format_exc())
+        raise
+
+
+def _mark_job_failed(query_id: str, error_message: str):
+    """Mark job as failed in database."""
+    import traceback
+
+    db_session = None
+    try:
+        db_session = SessionLocal()
+        query_record = db_session.query(Query).filter(Query.id == query_id).first()
+        if query_record:
+            query_record.processing_status = "failed"
+            query_record.execution_time = 0  # Could track failed time separately
+            db_session.commit()
+            logger.info("❌ JOB_MARKED_AS_FAILED", query_id=query_id, error=error_message)
+        else:
+            logger.error("❓ JOB_RECORD_NOT_FOUND_FOR_FAILURE_UPDATE", query_id=query_id)
+        db_session.close()
+    except Exception as db_error:
+        logger.error("💥 FAILED_TO_MARK_JOB_AS_FAILED",
+                    error=str(db_error),
+                    query_id=query_id,
+                    original_error=error_message,
+                    traceback=traceback.format_exc())
+        if db_session:
+            try:
+                db_session.close()
+            except:
+                pass
 
 
 @router.get("/query/{query_id}", response_model=QueryResponse)

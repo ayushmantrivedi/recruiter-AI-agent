@@ -1,28 +1,22 @@
 #!/usr/bin/env python3
-"""Check actual database schema."""
+"""Check database schema."""
 
-import sys
-sys.path.append('.')
-
-from app.config import settings
 from app.database import engine
+from sqlalchemy import inspect
 
-print("=== CHECKING ACTUAL DATABASE SCHEMA ===")
+inspector = inspect(engine)
 
-try:
-    with engine.connect() as conn:
-        # Check leads table schema
-        from sqlalchemy import text
-        result = conn.execute(text("""
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns
-            WHERE table_name = 'leads'
-            ORDER BY ordinal_position
-        """))
+print("=== QUERIES TABLE SCHEMA ===")
+columns = inspector.get_columns('queries')
+for col in columns:
+    print(f"{col['name']}: {col['type']} (nullable: {col.get('nullable', True)})")
 
-        print("leads table schema:")
-        for row in result:
-            print(f"  {row[0]}: {row[1]} {'(nullable)' if row[2] == 'YES' else '(not null)'}")
+print("\n=== FOREIGN KEYS ===")
+fks = inspector.get_foreign_keys('queries')
+for fk in fks:
+    print(f"  {fk}")
 
-except Exception as e:
-    print(f"[ERROR] {e}")
+print("\n=== INDEXES ===")
+indexes = inspector.get_indexes('queries')
+for idx in indexes:
+    print(f"  {idx['name']}: {idx['column_names']}")

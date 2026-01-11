@@ -129,40 +129,38 @@ class RecruiterPipeline:
             }
 
     async def _save_to_database(self, result: Dict[str, Any]):
-        """Save processing results to database."""
-        try:
-            db = SessionLocal()
-            try:
-                # Update existing query record
-                query = db.query(Query).filter(Query.id == result["query_id"]).first()
-                if query:
-                    # Update the existing record
-                    query.concept_vector = result["concept_vector"]
-                    query.constraints = result["constraints"]
-                    query.confidence_score = result["orchestration_summary"]["confidence"]
-                    query.processing_status = "completed"
-                    query.total_cost = result["orchestration_summary"]["total_cost"]
-                    query.execution_time = result["processing_time"]
-                    query.completed_at = datetime.utcnow()
-                else:
-                    # Fallback: create new record if not found (shouldn't happen)
-                    logger.warning("Query record not found, creating new one", query_id=result["query_id"])
-                    query = Query(
-                        id=result["query_id"],
-                        recruiter_id=result.get("recruiter_id"),
-                        query_text=result["original_query"],
-                        concept_vector=result["concept_vector"],
-                        constraints=result["constraints"],
-                        confidence_score=result["orchestration_summary"]["confidence"],
-                        processing_status="completed",
-                        total_cost=result["orchestration_summary"]["total_cost"],
-                        execution_time=result["processing_time"],
-                        completed_at=datetime.utcnow()
-                    )
-                    db.add(query)
+        """Save processing results to database with guaranteed consistency."""
+        import traceback
 
-                # Save leads
-                for lead_data in result["leads"]:
+        db_session = None
+        try:
+            logger.info("💾 DB_SAVE_STARTED", query_id=result["query_id"])
+            db_session = SessionLocal()
+
+            # Update existing query record
+            query = db_session.query(Query).filter(Query.id == result["query_id"]).first()
+            if not query:
+                logger.error("❌ QUERY_RECORD_NOT_FOUND_FOR_UPDATE",
+                           query_id=result["query_id"])
+                raise ValueError(f"Query record not found: {result['query_id']}")
+
+            # Update the existing record with all results
+            logger.info("📝 DB_UPDATE_QUERY_RECORD", query_id=result["query_id"])
+            query.concept_vector = result["concept_vector"]
+            query.constraints = result["constraints"]
+            query.confidence_score = result["orchestration_summary"]["confidence"]
+            query.processing_status = "completed"
+            query.total_cost = result["orchestration_summary"]["total_cost"]
+            query.execution_time = result["processing_time"]
+            query.completed_at = datetime.utcnow()
+
+            # Save leads with error handling
+            logger.info("👥 DB_SAVE_LEADS_STARTED",
+                       query_id=result["query_id"],
+                       lead_count=len(result["leads"]))
+            leads_saved = 0
+            for lead_data in result["leads"]:
+                try:
                     lead = Lead(
                         query_id=result["query_id"],
                         company_name=lead_data["company"],
@@ -171,19 +169,57 @@ class RecruiterPipeline:
                         reasons=lead_data["reasons"],
                         evidence_count=lead_data["evidence_count"]
                     )
-                    db.add(lead)
+                    db_session.add(lead)
+                    leads_saved += 1
+                except Exception as lead_error:
+                    logger.error("❌ FAILED_TO_SAVE_LEAD",
+                               query_id=result["query_id"],
+                               company=lead_data.get("company", "unknown"),
+                               error=str(lead_error))
 
-                # Save execution history (simplified)
-                # In production, would save detailed execution steps
+            # Commit all changes atomically
+            logger.info("🔄 DB_TRANSACTION_COMMIT_STARTED", query_id=result["query_id"])
+            db_session.commit()
+            logger.info("✅ DB_TRANSACTION_COMMIT_COMPLETED",
+                       query_id=result["query_id"],
+                       leads_saved=leads_saved)
 
-                db.commit()
-                logger.debug("Results saved to database", query_id=result["query_id"])
+            db_session.close()
+            db_session = None
 
-            finally:
-                db.close()
+            logger.info("💾 DB_SAVE_COMPLETED_SUCCESSFULLY",
+                       query_id=result["query_id"],
+                       leads_saved=leads_saved)
 
         except Exception as e:
-            logger.error("Database save failed", error=str(e), query_id=result["query_id"])
+            logger.error("💥 DB_SAVE_FAILED",
+                        error=str(e),
+                        query_id=result["query_id"],
+                        traceback=traceback.format_exc())
+
+            # Attempt to rollback and mark job as failed
+            if db_session:
+                try:
+                    db_session.rollback()
+                    # Try to mark job as failed
+                    query = db_session.query(Query).filter(Query.id == result["query_id"]).first()
+                    if query:
+                        query.processing_status = "failed"
+                        query.execution_time = result.get("processing_time", 0)
+                        db_session.commit()
+                        logger.info("❌ JOB_MARKED_AS_FAILED_DUE_TO_DB_ERROR", query_id=result["query_id"])
+                except Exception as rollback_error:
+                    logger.error("💥 DB_ROLLBACK_FAILED",
+                               query_id=result["query_id"],
+                               rollback_error=str(rollback_error))
+                finally:
+                    try:
+                        db_session.close()
+                    except:
+                        pass
+
+            # Re-raise to let caller handle
+            raise
 
     async def get_query_status(self, query_id: str) -> Optional[Dict[str, Any]]:
         """Get the status and results of a query."""

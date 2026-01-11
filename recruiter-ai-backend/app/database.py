@@ -38,8 +38,7 @@ class Recruiter(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    queries = relationship("Query", back_populates="recruiter")
-    preferences = relationship("RecruiterPreferences", back_populates="recruiter", uselist=False)
+    # Note: relationships removed to avoid foreign key issues since recruiter_id is used as string identifier
 
 
 class RecruiterPreferences(Base):
@@ -68,7 +67,7 @@ class RecruiterPreferences(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    recruiter = relationship("Recruiter", back_populates="preferences")
+    # Note: recruiter relationship removed to avoid foreign key issues
 
 
 class Query(Base):
@@ -76,7 +75,7 @@ class Query(Base):
     __tablename__ = "queries"
 
     id = Column(String(36), primary_key=True, index=True)
-    recruiter_id = Column(Integer, ForeignKey("recruiters.id"), nullable=True)
+    recruiter_id = Column(String(255), nullable=True)  # Changed to string to match API contract
     query_text = Column(Text, nullable=False)
 
     # Agent processing results
@@ -93,7 +92,7 @@ class Query(Base):
     completed_at = Column(DateTime(timezone=True))
 
     # Relationships
-    recruiter = relationship("Recruiter", back_populates="queries")
+    # Note: recruiter relationship removed since recruiter_id is used as string identifier, not foreign key
     leads = relationship("Lead", back_populates="query")
     executions = relationship("AgentExecution", back_populates="query")
 
