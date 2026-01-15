@@ -26,9 +26,13 @@ class LeadNormalizer:
         source = raw_lead.get("source", "unknown")
         
         # Default extractions
+        # Priority: company -> company_name -> Unknown
         company = raw_lead.get("company") or raw_lead.get("company_name") or "Unknown Company"
         role = raw_lead.get("title") or raw_lead.get("role") or "Unknown Role"
-        location = raw_lead.get("location", "Remote")
+        location = raw_lead.get("location") # Allow None here, let downstream handle or default
+        if not location:
+             location = "Remote" # Default to Remote if source doesn't specify
+             
         url = raw_lead.get("url") or raw_lead.get("job_url") or "#"
         
         # Skills extraction (could be list or string)

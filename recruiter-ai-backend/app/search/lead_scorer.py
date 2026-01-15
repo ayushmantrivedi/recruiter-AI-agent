@@ -1,4 +1,5 @@
 from typing import Dict, Any
+import math
 from .lead_normalizer import NormalizedLead
 from ..utils.logger import get_logger
 
@@ -8,9 +9,20 @@ class LeadScorer:
     """Scores leads based on intelligence signals and lead attributes."""
     
     @staticmethod
+    def _apply_soft_cap(raw_score: float, max_score: float = 100.0) -> float:
+        """
+        Apply soft cap using tanh to prevent saturation.
+        Maps [0, inf) -> [0, max_score) with diminishing returns.
+        """
+        # Normalize to [0, 1] range using tanh
+        # tanh(x/30) gives smooth curve: 50->0.86, 75->0.95, 100->0.98
+        normalized = math.tanh(raw_score / 30.0)
+        return normalized * max_score
+    
+    @staticmethod
     def compute_score(lead: NormalizedLead, signals: Dict[str, float]) -> float:
         """
-        Compute a score between 0 and 100.
+        Compute a score between 0 and 100 with soft cap to prevent saturation.
         Signals: hiring_pressure, role_scarcity, market_difficulty (0-1 floats)
         """
         base_score = 50.0
@@ -19,9 +31,7 @@ class LeadScorer:
         # High hiring pressure -> +score
         base_score += signals.get("hiring_pressure", 0.5) * 20 
         
-        # High role scarcity -> -score (harder to convert, maybe? Or +score because valuable? 
-        # Usually for a recruiter finding leads, high scarcity means 'hard to find', 
-        # but if we FOUND one, it's a high value lead. Let's assume high score = high value lead.)
+        # High role scarcity -> +score (valuable lead)
         base_score += signals.get("role_scarcity", 0.5) * 15
         
         # 2. Lead Attribute Impact
@@ -41,8 +51,8 @@ class LeadScorer:
         if lead.salary_range:
             base_score += 10
             
-        # Cap at 100
-        final_score = min(100.0, max(0.0, base_score))
+        # Apply soft cap to prevent saturation
+        final_score = LeadScorer._apply_soft_cap(base_score)
         
         return round(final_score, 1)
 

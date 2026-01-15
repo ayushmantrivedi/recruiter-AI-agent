@@ -358,6 +358,24 @@ async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter
         # Call deterministic engine (sync)
         intelligence_result = recruiter_pipeline.intelligence_engine.process(query)
         
+        # Prepare intelligence envelope for Search Orchestrator
+        intelligence_envelope = {
+            "intelligence": {
+                "intent": intelligence_result.intent,
+                "role": intelligence_result.role,
+                "skills": intelligence_result.skills,
+                "experience": intelligence_result.experience,
+                "seniority": intelligence_result.seniority,
+                "location": intelligence_result.location
+            },
+            "signals": {
+                "hiring_pressure": intelligence_result.hiring_pressure,
+                "role_scarcity": intelligence_result.role_scarcity,
+                "outsourcing_likelihood": intelligence_result.outsourcing_likelihood,
+                "market_difficulty": intelligence_result.market_difficulty
+            }
+        }
+
         # Map to legacy format for compatibility
         concept_vector = intelligence_result.dict()
         constraints = {
@@ -372,50 +390,50 @@ async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter
                    query_id=query_id,
                    concept_vector_length=len(concept_vector))
 
-        # Step 2: Action Orchestration
-        logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_STARTED", query_id=query_id)
-        orchestration_result = await recruiter_pipeline.action_orchestrator.orchestrate_search(
-            query_id,
-            concept_vector,
-            constraints
+        # Step 2: Search & Ranking Orchestration
+        logger.info("🎯 STEP_2_SEARCH_ORCHESTRATION_STARTED", query_id=query_id)
+        
+        search_result = await recruiter_pipeline.search_orchestrator.orchestrate(
+            query,
+            intelligence_envelope
         )
-        logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_COMPLETED",
+        
+        # Extract results
+        leads = search_result["leads"]
+        evidence_objects = search_result.get("evidence_objects", [])
+        
+        logger.info("🎯 STEP_2_SEARCH_ORCHESTRATION_COMPLETED",
                    query_id=query_id,
-                   total_steps=orchestration_result.get("total_steps", 0),
-                   total_cost=orchestration_result.get("total_cost", 0))
+                   leads_found=len(leads),
+                   total_count=search_result.get("total_count", 0))
 
-        # Step 3: Signal Judgment
-        logger.info("⚖️ STEP_3_SIGNAL_JUDGMENT_STARTED", query_id=query_id)
-        leads = await recruiter_pipeline.signal_judge.judge_leads(
-            query_id,
-            orchestration_result["evidence_objects"],
-            constraints
-        )
-        logger.info("⚖️ STEP_3_SIGNAL_JUDGMENT_COMPLETED",
-                   query_id=query_id,
-                   leads_found=len(leads))
+        # Step 3: Database Save (Consolidated Step)
+        logger.info("💾 STEP_3_DATABASE_SAVE_STARTED", query_id=query_id)
+        
+        # Calculate orchestration summary
+        orchestration_summary = {
+            "confidence": max([l.get("confidence", 0) for l in leads]) if leads else 0.0,
+            "total_steps": 3, # 3 sources
+            "total_cost": 0.0,
+            "evidence_count": len(evidence_objects)
+        }
 
-        # Step 4: Database Save
-        logger.info("💾 STEP_4_DATABASE_SAVE_STARTED", query_id=query_id)
         await recruiter_pipeline._save_to_database({
             "query_id": query_id,
             "recruiter_id": recruiter_id,
             "original_query": query,
-            "processing_time": 0,  # Will be updated by pipeline
+            "processing_time": 0,  # Will be updated by _save_to_database logic or unused
             "concept_vector": concept_vector,
+            "intelligence": intelligence_envelope["intelligence"],
+            "signals": intelligence_envelope["signals"],
             "constraints": constraints,
-            "orchestration_summary": {
-                "confidence": orchestration_result["confidence"],
-                "total_steps": orchestration_result["total_steps"],
-                "total_cost": orchestration_result["total_cost"],
-                "evidence_count": len(orchestration_result["evidence_objects"])
-            },
+            "orchestration_summary": orchestration_summary,
             "leads": leads[:20],  # Limit to top 20 leads
             "total_leads_found": len(leads),
             "status": "completed",
             "completed_at": datetime.utcnow().isoformat()
         })
-        logger.info("💾 STEP_4_DATABASE_SAVE_COMPLETED", query_id=query_id)
+        logger.info("💾 STEP_3_DATABASE_SAVE_COMPLETED", query_id=query_id)
 
         logger.info("🎉 PIPELINE_COMPLETED_SUCCESSFULLY", query_id=query_id)
 
@@ -515,7 +533,7 @@ async def get_leads(recruiter_id: str = None, limit: int = 50, offset: int = 0, 
                     "score": lead.score,
                     "confidence": lead.confidence,
                     "reasons": lead.reasons,
-                    "evidence_count": lead.evidence_count,
+                    # evidence_count removed - not in DB schema
                     "created_at": lead.created_at.isoformat(),
                     "query_id": lead.query_id
                 }
@@ -545,7 +563,7 @@ async def get_lead_by_id(lead_id: int, db=Depends(get_db)):
             "score": lead.score,
             "confidence": lead.confidence,
             "reasons": lead.reasons,
-            "evidence_count": lead.evidence_count,
+            # evidence_count removed - not in DB schema
             "evidence_objects": lead.evidence_objects,
             "job_postings": lead.job_postings,
             "news_mentions": lead.news_mentions,

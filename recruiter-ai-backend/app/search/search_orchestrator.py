@@ -35,7 +35,7 @@ class SearchOrchestrator:
         
         constraints = {
             "role": metadata.get("role", query), # Fallback to query if role extraction failed
-            "location": metadata.get("location", "Remote"),
+            "location": metadata.get("location") or "Remote", # STRICT: Use intelligence first, fallback only if null/empty
             "skills": metadata.get("skills", []),
             "seniority": metadata.get("seniority", "")
         }
@@ -62,16 +62,21 @@ class SearchOrchestrator:
         # 5. Rank
         ranked_leads = self.ranker.rank(scored_leads)
         
-        # 6. Format Output (similar to legacy 'evidence_objects' + 'ranked_leads')
+        # 6. Enrich - Inject intelligence and scoring data into lead dicts
+        from ..enrichment.lead_enricher import LeadEnricher
+        lead_dicts = [lead.to_dict() for lead in ranked_leads]
+        enriched_leads = LeadEnricher.enrich_batch(lead_dicts, metadata, signals)
+        
+        # 7. Format Output (similar to legacy 'evidence_objects' + 'ranked_leads')
         
         # Create legacy-compatible evidence list
-        evidence_objects = [lead.to_dict() for lead in ranked_leads]
+        evidence_objects = enriched_leads  # Already dicts
         
         return {
-            "leads": [lead.to_dict() for lead in ranked_leads],
-            "total_count": len(ranked_leads),
+            "leads": enriched_leads,
+            "total_count": len(enriched_leads),
             "evidence_objects": evidence_objects, # Backward compat
-            "top_companies": list(set(l.company_name for l in ranked_leads[:5]))
+            "top_companies": list(set(l.get("company_name", "Unknown") for l in enriched_leads[:5]))
         }
 
 # Global instance

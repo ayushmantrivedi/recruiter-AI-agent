@@ -119,9 +119,12 @@ class RecruiterPipeline:
             leads = search_result["leads"]
             evidence_objects = search_result["evidence_objects"]
             
+            # Limit to top 20 leads BEFORE counting
+            limited_leads = leads[:20]
+            
             # Calculate mock orchestration summary for API compatibility
             orchestration_cols = {
-                "confidence": max([l.get("confidence", 0) for l in leads]) if leads else 0.0,
+                "confidence": max([l.get("confidence", 0) for l in limited_leads]) if limited_leads else 0.0,
                 "total_steps": 3, # 3 sources
                 "total_cost": 0.0,
                 "evidence_count": len(evidence_objects)
@@ -140,8 +143,8 @@ class RecruiterPipeline:
                 "signals": signals,
                 "constraints": constraints,
                 "orchestration_summary": orchestration_cols,
-                "leads": leads[:20],  # Limit to top 20 leads
-                "total_leads_found": len(leads),
+                "leads": limited_leads,
+                "total_leads_found": len(limited_leads),  # Count AFTER limiting
                 "status": "completed",
                 "completed_at": datetime.utcnow().isoformat()
             }
@@ -219,16 +222,38 @@ class RecruiterPipeline:
             logger.info("👥 DB_SAVE_LEADS_STARTED",
                        query_id=result["query_id"],
                        lead_count=len(result["leads"]))
+            
+            from ..contracts.lead_contract import LeadContract
+            
             leads_saved = 0
             for lead_data in result["leads"]:
                 try:
+                    # 1. Contract Enforcement - Strip unknown fields
+                    clean_lead = LeadContract.sanitize(lead_data)
+                    if not clean_lead:
+                        logger.warning("⚠️ SKIPPING_INVALID_LEAD", 
+                                     query_id=result["query_id"], 
+                                     reason="contract_validation_failed")
+                        continue
+                    
+                    # 2. Verify required fields
+                    if not LeadContract.validate_required(clean_lead):
+                        logger.warning("⚠️ SKIPPING_LEAD_MISSING_REQUIRED_FIELDS",
+                                     query_id=result["query_id"],
+                                     company=clean_lead.get("company_name", "unknown"))
+                        continue
+                        
+                    # 3. Persist (only DB-allowed fields)
                     lead = Lead(
                         query_id=result["query_id"],
-                        company_name=lead_data["company"],
-                        score=lead_data["score"],
-                        confidence=lead_data["confidence"],
-                        reasons=lead_data["reasons"],
-                        evidence_count=lead_data["evidence_count"]
+                        company_name=clean_lead["company_name"],
+                        score=clean_lead["score"],
+                        confidence=clean_lead["confidence"],
+                        reasons=clean_lead.get("reasons", []),
+                        # NOTE: evidence_count removed - not in DB schema
+                        evidence_objects=clean_lead.get("evidence_objects", []),
+                        job_postings=clean_lead.get("job_postings", []),
+                        news_mentions=clean_lead.get("news_mentions", [])
                     )
                     db_session.add(lead)
                     leads_saved += 1
@@ -322,8 +347,8 @@ class RecruiterPipeline:
                             "company": lead.company_name,
                             "score": lead.score,
                             "confidence": lead.confidence,
-                            "reasons": lead.reasons,
-                            "evidence_count": lead.evidence_count
+                            "reasons": lead.reasons
+                            # evidence_count removed - not in DB schema
                         }
                         for lead in leads
                     ],
