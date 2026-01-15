@@ -3,8 +3,7 @@ import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
 # from ..agents.concept_reasoner import concept_reasoner # Removed
-from ..agents.action_orchestrator import action_orchestrator
-from ..agents.signal_judge import signal_judge
+from ..search.search_orchestrator import search_orchestrator
 from ..database import SessionLocal, Query, Lead, AgentExecution
 from ..utils.logger import get_logger
 from ..utils.cache import cache
@@ -18,8 +17,7 @@ class RecruiterPipeline:
     """Main pipeline service orchestrating the complete agent workflow."""
 
     def __init__(self):
-        self.action_orchestrator = action_orchestrator
-        self.signal_judge = signal_judge
+        self.search_orchestrator = search_orchestrator
         self.intelligence_engine = IntelligenceEngine
 
     async def initialize(self):
@@ -28,13 +26,11 @@ class RecruiterPipeline:
         if not hasattr(self, "intelligence_engine") or not self.intelligence_engine:
             raise RuntimeError("CRITICAL: IntelligenceEngine missing in RecruiterPipeline")
             
-        # 2. Verify Action Orchestrator
-        if not self.action_orchestrator:
-             raise RuntimeError("CRITICAL: ActionOrchestrator missing in RecruiterPipeline")
+        # 2. Verify Search Orchestrator
+        if not self.search_orchestrator:
+             raise RuntimeError("CRITICAL: SearchOrchestrator missing in RecruiterPipeline")
 
-        # 3. Verify Signal Judge
-        if not self.signal_judge:
-             raise RuntimeError("CRITICAL: SignalJudge missing in RecruiterPipeline")
+        # 3. Verify Database (simple check to ensure import/connection capability)
              
         # 4. Verify Database (simple check to ensure import/connection capability)
         try:
@@ -105,17 +101,31 @@ class RecruiterPipeline:
                 "skills": intelligence_result.skills
             }
 
-            # Step 2: Action Orchestration
-            logger.info("Step 2: Action orchestration", query_id=query_id)
-            orchestration_result = await self.action_orchestrator.orchestrate_search(
-                query_id, concept_vector, constraints
+            # Step 2: Search & Ranking Orchestration (New Layer)
+            logger.info("Step 2: Search & Ranking Orchestration", query_id=query_id)
+            
+            # Prepare intelligence envelope
+            intelligence_envelope = {
+                "intelligence": intelligence,
+                "signals": signals
+            }
+            
+            search_result = await self.search_orchestrator.orchestrate(
+                recruiter_query,
+                intelligence_envelope
             )
 
-            evidence_objects = orchestration_result["evidence_objects"]
-
-            # Step 3: Signal Judgment
-            logger.info("Step 3: Signal judgment", query_id=query_id)
-            leads = await self.signal_judge.judge_leads(query_id, evidence_objects, constraints)
+            # Map results
+            leads = search_result["leads"]
+            evidence_objects = search_result["evidence_objects"]
+            
+            # Calculate mock orchestration summary for API compatibility
+            orchestration_cols = {
+                "confidence": max([l.get("confidence", 0) for l in leads]) if leads else 0.0,
+                "total_steps": 3, # 3 sources
+                "total_cost": 0.0,
+                "evidence_count": len(evidence_objects)
+            }
 
             # Calculate final metrics
             processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -129,12 +139,7 @@ class RecruiterPipeline:
                 "intelligence": intelligence,
                 "signals": signals,
                 "constraints": constraints,
-                "orchestration_summary": {
-                    "confidence": orchestration_result["confidence"],
-                    "total_steps": orchestration_result["total_steps"],
-                    "total_cost": orchestration_result["total_cost"],
-                    "evidence_count": len(evidence_objects)
-                },
+                "orchestration_summary": orchestration_cols,
                 "leads": leads[:20],  # Limit to top 20 leads
                 "total_leads_found": len(leads),
                 "status": "completed",
