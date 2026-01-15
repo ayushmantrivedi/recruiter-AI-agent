@@ -101,13 +101,37 @@ async def parse_query_input(request: Request) -> NormalizedQuery:
         raise HTTPException(status_code=400, detail="Invalid request format. Expected JSON or form data.")
 
 
+
+class IntelligenceMetadata(BaseModel):
+    """Structured metadata extracted from query."""
+    intent: str
+    role: str
+    skills: List[str]
+    experience: int
+    seniority: str
+    location: str
+
+class IntelligenceSignals(BaseModel):
+    """Numeric intelligence metrics."""
+    hiring_pressure: float
+    role_scarcity: float
+    outsourcing_likelihood: float
+    market_difficulty: float
+
 class QueryResponse(BaseModel):
     """Response model for query processing."""
     query_id: str
     status: str
     original_query: str
     processing_time: Optional[float] = None
-    concept_vector: Optional[Dict[str, float]] = None
+    
+    # New Standard Fields
+    intelligence: Optional[IntelligenceMetadata] = None
+    signals: Optional[IntelligenceSignals] = None
+    
+    # Legacy / Optional
+    concept_vector: Optional[Dict[str, Any]] = None # Relaxed type for backward compat
+    
     constraints: Optional[Dict[str, Any]] = None
     orchestration_summary: Optional[Dict[str, Any]] = None
     leads: List[Dict[str, Any]] = []
@@ -328,19 +352,32 @@ async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter
     logger.info("🔍 PIPELINE_STARTED", query_id=query_id)
 
     try:
-        # Step 1: Concept Reasoning
-        logger.info("🧠 STEP_1_CONCEPT_REASONING_STARTED", query_id=query_id)
-        concept_result = await recruiter_pipeline.concept_reasoner.process_query(query, recruiter_id)
-        logger.info("🧠 STEP_1_CONCEPT_REASONING_COMPLETED",
+        # Step 1: Intelligence Engine (Deterministic)
+        logger.info("🧠 STEP_1_INTELLIGENCE_ENGINE_STARTED", query_id=query_id)
+        
+        # Call deterministic engine (sync)
+        intelligence_result = recruiter_pipeline.intelligence_engine.process(query)
+        
+        # Map to legacy format for compatibility
+        concept_vector = intelligence_result.dict()
+        constraints = {
+            "role": intelligence_result.role,
+            "location": intelligence_result.location,
+            "experience": intelligence_result.experience,
+            "seniority": intelligence_result.seniority,
+            "skills": intelligence_result.skills
+        }
+        
+        logger.info("🧠 STEP_1_INTELLIGENCE_ENGINE_COMPLETED",
                    query_id=query_id,
-                   concept_vector_length=len(concept_result.get("concept_vector", {})))
+                   concept_vector_length=len(concept_vector))
 
         # Step 2: Action Orchestration
         logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_STARTED", query_id=query_id)
         orchestration_result = await recruiter_pipeline.action_orchestrator.orchestrate_search(
             query_id,
-            concept_result["concept_vector"],
-            concept_result["constraints"]
+            concept_vector,
+            constraints
         )
         logger.info("🎯 STEP_2_ACTION_ORCHESTRATION_COMPLETED",
                    query_id=query_id,
@@ -352,7 +389,7 @@ async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter
         leads = await recruiter_pipeline.signal_judge.judge_leads(
             query_id,
             orchestration_result["evidence_objects"],
-            concept_result["constraints"]
+            constraints
         )
         logger.info("⚖️ STEP_3_SIGNAL_JUDGMENT_COMPLETED",
                    query_id=query_id,
@@ -365,8 +402,8 @@ async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter
             "recruiter_id": recruiter_id,
             "original_query": query,
             "processing_time": 0,  # Will be updated by pipeline
-            "concept_vector": concept_result["concept_vector"],
-            "constraints": concept_result["constraints"],
+            "concept_vector": concept_vector,
+            "constraints": constraints,
             "orchestration_summary": {
                 "confidence": orchestration_result["confidence"],
                 "total_steps": orchestration_result["total_steps"],

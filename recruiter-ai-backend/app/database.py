@@ -79,7 +79,9 @@ class Query(Base):
     query_text = Column(Text, nullable=False)
 
     # Agent processing results
-    concept_vector = Column(JSON)  # Concept reasoner output
+    concept_vector = Column(JSON, nullable=True)  # Legacy support
+    intelligence = Column(JSON, nullable=True)    # New structured metadata
+    signals = Column(JSON, nullable=True)         # New numeric metrics
     constraints = Column(JSON)     # Derived constraints
     confidence_score = Column(Float)
     processing_status = Column(String(50), default="pending")  # pending, processing, completed, failed

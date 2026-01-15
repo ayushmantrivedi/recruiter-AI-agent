@@ -14,30 +14,7 @@ class TestRecruiterPipeline:
         """Test basic pipeline functionality."""
         assert True
 
-    @pytest.mark.asyncio
-    async def test_concept_reasoner_basic(self):
-        """Test basic concept reasoning functionality."""
-        # Test that we can import and create the mock structure
-        expected_result = {
-            "concept_vector": {
-                "hiring_pressure": 0.8,
-                "role_scarcity": 0.6,
-                "outsourcing_likelihood": 0.3
-            },
-            "constraints": {
-                "role": "backend engineer",
-                "region": "remote",
-                "min_job_posts": 5,
-                "window_days": 60,
-                "exclude_enterprise": False
-            }
-        }
-
-        # Verify the expected structure is correct
-        assert "concept_vector" in expected_result
-        assert "constraints" in expected_result
-        assert expected_result["concept_vector"]["hiring_pressure"] == 0.8
-        assert expected_result["constraints"]["role"] == "backend engineer"
+    # test_concept_reasoner_basic removed - replaced by IntelligenceEngine tests
 
     def test_action_orchestrator_structure(self):
         """Test action orchestrator basic structure."""

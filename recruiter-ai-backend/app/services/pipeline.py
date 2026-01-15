@@ -2,12 +2,14 @@ import asyncio
 import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
-from ..agents.concept_reasoner import concept_reasoner
+# from ..agents.concept_reasoner import concept_reasoner # Removed
 from ..agents.action_orchestrator import action_orchestrator
 from ..agents.signal_judge import signal_judge
 from ..database import SessionLocal, Query, Lead, AgentExecution
 from ..utils.logger import get_logger
 from ..utils.cache import cache
+
+from ..intelligence.intelligence_engine import IntelligenceEngine
 
 logger = get_logger("pipeline")
 
@@ -16,14 +18,37 @@ class RecruiterPipeline:
     """Main pipeline service orchestrating the complete agent workflow."""
 
     def __init__(self):
-        self.concept_reasoner = concept_reasoner
         self.action_orchestrator = action_orchestrator
         self.signal_judge = signal_judge
+        self.intelligence_engine = IntelligenceEngine
 
     async def initialize(self):
-        """Initialize all agents."""
-        await self.concept_reasoner.initialize()
-        logger.info("Recruiter pipeline initialized")
+        """Initialize all agents and verify pipeline integrity."""
+        # 1. Verify Intelligence Engine
+        if not hasattr(self, "intelligence_engine") or not self.intelligence_engine:
+            raise RuntimeError("CRITICAL: IntelligenceEngine missing in RecruiterPipeline")
+            
+        # 2. Verify Action Orchestrator
+        if not self.action_orchestrator:
+             raise RuntimeError("CRITICAL: ActionOrchestrator missing in RecruiterPipeline")
+
+        # 3. Verify Signal Judge
+        if not self.signal_judge:
+             raise RuntimeError("CRITICAL: SignalJudge missing in RecruiterPipeline")
+             
+        # 4. Verify Database (simple check to ensure import/connection capability)
+        try:
+            from ..database import SessionLocal
+            db = SessionLocal()
+            db.close()
+        except Exception as e:
+            raise RuntimeError(f"CRITICAL: Database adapter failed: {str(e)}")
+
+        # Ensure no legacy ghosts exist
+        if hasattr(self, "concept_reasoner"):
+            delattr(self, "concept_reasoner")
+
+        logger.info("Recruiter pipeline initialized and verified")
 
     async def process_recruiter_query(self, recruiter_query: str, recruiter_id: str = None, query_id: str = None) -> Dict[str, Any]:
         """Process a complete recruiter query through all agents.
@@ -47,11 +72,38 @@ class RecruiterPipeline:
                        recruiter_id=recruiter_id,
                        query=recruiter_query)
 
-            # Step 1: Concept Reasoning
-            logger.info("Step 1: Concept reasoning", query_id=query_id)
-            concept_result = await self.concept_reasoner.process_query(recruiter_query, recruiter_id)
-            concept_vector = concept_result["concept_vector"]
-            constraints = concept_result["constraints"]
+            # Step 1: Intelligence Engine (Deterministic)
+            logger.info("Step 1: Intelligence Engine", query_id=query_id)
+            intelligence_result = self.intelligence_engine.process(recruiter_query)
+            
+            # Split into Metadata and Signals for API contract
+            intelligence = {
+                "intent": intelligence_result.intent,
+                "role": intelligence_result.role,
+                "skills": intelligence_result.skills,
+                "experience": intelligence_result.experience,
+                "seniority": intelligence_result.seniority,
+                "location": intelligence_result.location
+            }
+            
+            signals = {
+                "hiring_pressure": intelligence_result.hiring_pressure,
+                "role_scarcity": intelligence_result.role_scarcity,
+                "outsourcing_likelihood": intelligence_result.outsourcing_likelihood,
+                "market_difficulty": intelligence_result.market_difficulty
+            }
+
+            # Map to legacy format for compatibility (full dict)
+            concept_vector = intelligence_result.dict()
+            
+            # Extract constraints from intelligence result
+            constraints = {
+                "role": intelligence_result.role,
+                "location": intelligence_result.location,
+                "experience": intelligence_result.experience,
+                "seniority": intelligence_result.seniority,
+                "skills": intelligence_result.skills
+            }
 
             # Step 2: Action Orchestration
             logger.info("Step 2: Action orchestration", query_id=query_id)
@@ -74,6 +126,8 @@ class RecruiterPipeline:
                 "original_query": recruiter_query,
                 "processing_time": processing_time,
                 "concept_vector": concept_vector,
+                "intelligence": intelligence,
+                "signals": signals,
                 "constraints": constraints,
                 "orchestration_summary": {
                     "confidence": orchestration_result["confidence"],
@@ -147,6 +201,8 @@ class RecruiterPipeline:
             # Update the existing record with all results
             logger.info("📝 DB_UPDATE_QUERY_RECORD", query_id=result["query_id"])
             query.concept_vector = result["concept_vector"]
+            query.intelligence = result.get("intelligence")
+            query.signals = result.get("signals")
             query.constraints = result["constraints"]
             query.confidence_score = result["orchestration_summary"]["confidence"]
             query.processing_status = "completed"
@@ -250,6 +306,8 @@ class RecruiterPipeline:
                     "status": query.processing_status,
                     "original_query": query.query_text,
                     "concept_vector": query.concept_vector,
+                    "intelligence": query.intelligence,
+                    "signals": query.signals,
                     "constraints": query.constraints,
                     "confidence_score": query.confidence_score,
                     "total_cost": query.total_cost,
