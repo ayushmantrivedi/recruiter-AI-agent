@@ -17,21 +17,58 @@ class DataSource(ABC):
 class MockJobBoard(DataSource):
     """Simulates a job board aggregator (wrapping actual JobAPIManager)."""
     
+    def __init__(self):
+        from ..config import settings
+        self.timeout = settings.agent.external_api_timeout
+        self.circuit_breaker_threshold = settings.agent.external_api_circuit_breaker_threshold
+        self.enable_github_jobs = settings.agent.enable_github_jobs
+        self.failure_count = 0
+    
     async def fetch(self, query: str, constraints: Dict[str, Any]) -> List[Dict[str, Any]]:
         logger.info(f"Fetching from MockJobBoard: {query}")
-        # Reuse existing logic but treat it as a 'mock' source that returns real-ish data
-        # In a real mock scenario, we might return hardcoded data, but since we have the API manager,
-        # we can use it to get 'realistic' data or fallback to hardcoded if it fails/returns empty.
         
-        # We will wrap the existing job_api_manager
+        # Circuit breaker check
+        if self.failure_count >= self.circuit_breaker_threshold:
+            logger.warning("Circuit breaker OPEN for MockJobBoard - skipping API call",
+                         failure_count=self.failure_count,
+                         threshold=self.circuit_breaker_threshold)
+            return []
+        
         try:
-            jobs = await job_api_manager.search_jobs(constraints)
+            # Add timeout to API call
+            jobs = await asyncio.wait_for(
+                job_api_manager.search_jobs(constraints),
+                timeout=self.timeout
+            )
+            
+            # Reset failure count on success
+            self.failure_count = 0
+            
             # Tag them
             for job in jobs:
                 job["source_layer"] = "MockJobBoard"
             return jobs
+            
+        except asyncio.TimeoutError:
+            self.failure_count += 1
+            logger.warning("MockJobBoard API timeout - external_dependency_degraded",
+                         timeout=self.timeout,
+                         failure_count=self.failure_count,
+                         query=query)
+            return []
+            
         except Exception as e:
-            logger.error(f"MockJobBoard failed: {e}")
+            self.failure_count += 1
+            # Reclassify as WARNING for external dependency issues
+            error_msg = str(e).lower()
+            if "getaddrinfo" in error_msg or "connection" in error_msg or "timeout" in error_msg:
+                logger.warning("MockJobBoard external_dependency_degraded",
+                             error=str(e),
+                             failure_count=self.failure_count,
+                             query=query)
+            else:
+                logger.error(f"MockJobBoard failed: {e}",
+                           failure_count=self.failure_count)
             return []
 
 class MockStartupDB(DataSource):

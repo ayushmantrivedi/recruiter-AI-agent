@@ -23,6 +23,13 @@ class LeadNormalizer:
     
     @staticmethod
     def normalize(raw_lead: Dict[str, Any]) -> NormalizedLead:
+        """
+        Normalize raw lead data with required field enforcement.
+        Returns None if lead is invalid (missing required fields).
+        """
+        from ..utils.logger import get_logger
+        logger = get_logger("lead_normalizer")
+        
         source = raw_lead.get("source", "unknown")
         
         # Default extractions
@@ -34,6 +41,28 @@ class LeadNormalizer:
              location = "Remote" # Default to Remote if source doesn't specify
              
         url = raw_lead.get("url") or raw_lead.get("job_url") or "#"
+        
+        # Required field validation
+        # Skip leads missing critical fields
+        if not company or company == "Unknown Company":
+            logger.warning("Skipping lead with missing company",
+                         raw_data=raw_lead,
+                         reason="missing_company")
+            return None
+        
+        if not role or role == "Unknown Role":
+            logger.warning("Skipping lead with missing role",
+                         company=company,
+                         raw_data=raw_lead,
+                         reason="missing_role")
+            return None
+        
+        if not source or source == "unknown":
+            logger.warning("Skipping lead with missing source",
+                         company=company,
+                         role=role,
+                         reason="missing_source")
+            return None
         
         # Skills extraction (could be list or string)
         skills = raw_lead.get("skills", [])
@@ -72,4 +101,29 @@ class LeadNormalizer:
 
     @staticmethod
     def batch_normalize(raw_leads: List[Dict[str, Any]]) -> List[NormalizedLead]:
-        return [LeadNormalizer.normalize(lead) for lead in raw_leads]
+        """Normalize batch of leads, skipping invalid ones."""
+        from ..utils.logger import get_logger
+        logger = get_logger("lead_normalizer")
+        
+        normalized = []
+        skipped_count = 0
+        
+        for raw_lead in raw_leads:
+            try:
+                normalized_lead = LeadNormalizer.normalize(raw_lead)
+                if normalized_lead is not None:
+                    normalized.append(normalized_lead)
+                else:
+                    skipped_count += 1
+            except Exception as e:
+                skipped_count += 1
+                logger.error("Failed to normalize lead",
+                           error=str(e),
+                           raw_data=raw_lead)
+        
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} invalid leads during normalization",
+                       total_raw=len(raw_leads),
+                       normalized=len(normalized))
+        
+        return normalized

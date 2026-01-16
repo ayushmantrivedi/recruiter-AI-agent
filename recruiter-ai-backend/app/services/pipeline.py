@@ -119,15 +119,33 @@ class RecruiterPipeline:
             leads = search_result["leads"]
             evidence_objects = search_result["evidence_objects"]
             
-            # Limit to top 20 leads BEFORE counting
+            # CRITICAL FIX: Get total_count BEFORE limiting
+            # This is the count from orchestrator before any truncation
+            total_leads_before_limit = search_result["total_count"]
+            
+            # Limit to top 20 leads for API response
             limited_leads = leads[:20]
+            
+            # Contract validation: total_leads_found must be >= len(limited_leads)
+            if total_leads_before_limit < len(limited_leads):
+                logger.error("CONTRACT VIOLATION: total_leads_found < len(leads)",
+                           total=total_leads_before_limit,
+                           actual=len(limited_leads))
+                # Fix the violation
+                total_leads_before_limit = len(limited_leads)
+            
+            # Get deduplication metrics from orchestrator
+            orchestrator_metrics = search_result.get("metrics", {})
             
             # Calculate mock orchestration summary for API compatibility
             orchestration_cols = {
                 "confidence": max([l.get("confidence", 0) for l in limited_leads]) if limited_leads else 0.0,
                 "total_steps": 3, # 3 sources
                 "total_cost": 0.0,
-                "evidence_count": len(evidence_objects)
+                "evidence_count": len(evidence_objects),
+                # Add deduplication metrics
+                "duplicates_removed": orchestrator_metrics.get("duplicates_removed", 0),
+                "duplicate_rate": orchestrator_metrics.get("duplicate_rate", 0.0)
             }
 
             # Calculate final metrics
@@ -144,7 +162,7 @@ class RecruiterPipeline:
                 "constraints": constraints,
                 "orchestration_summary": orchestration_cols,
                 "leads": limited_leads,
-                "total_leads_found": len(limited_leads),  # Count AFTER limiting
+                "total_leads_found": total_leads_before_limit,  # FIXED: Use count before limiting
                 "status": "completed",
                 "completed_at": datetime.utcnow().isoformat()
             }

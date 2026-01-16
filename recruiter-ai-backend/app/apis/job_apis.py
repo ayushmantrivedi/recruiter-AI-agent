@@ -191,10 +191,12 @@ class JobAPIManager:
             min_posts = constraints.get("min_job_posts", 1)
 
             # Parallel API calls
-            tasks = [
-                self.fetch_arbeitnow_jobs(query=role, location=region, limit=min_posts * 2),
-                self.fetch_github_jobs(description=role, location=region, limit=min_posts * 2)
-            ]
+            tasks = []
+            if settings.agent.enable_arbeitnow:
+                tasks.append(self.fetch_arbeitnow_jobs(query=role, location=region, limit=min_posts * 2))
+                
+            if settings.agent.enable_github_jobs:
+                tasks.append(self.fetch_github_jobs(description=role, location=region, limit=min_posts * 2))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 

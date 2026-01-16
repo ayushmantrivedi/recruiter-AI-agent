@@ -1,0 +1,24 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.4, pytest-7.4.3, pluggy-1.6.0 -- C:\Users\ayush\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\ayush\OneDrive\Desktop\AGENT 2\recruiter-ai-backend
+plugins: anyio-3.7.1, asyncio-0.21.1, cov-4.1.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 4 items
+
+tests/test_observability.py::test_orchestration_summary_present PASSED   [ 25%]
+tests/test_observability.py::test_provider_telemetry_attached PASSED     [ 50%]
+tests/test_observability.py::test_total_leads_found_fidelity PASSED      [ 75%]
+tests/test_observability.py::test_execution_mode_logging_config PASSED   [100%]
+
+============================== warnings summary ===============================
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\fields.py:799: 39 warnings
+  C:\Users\ayush\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\fields.py:799: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warn(
+
+..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\_internal\_config.py:268
+  C:\Users\ayush\AppData\Local\Programs\Python\Python312\Lib\site-packages\pydantic\_internal\_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 4 passed, 40 warnings in 3.41s ========================

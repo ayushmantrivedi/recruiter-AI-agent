@@ -6,11 +6,41 @@ from ..config import settings
 
 def setup_logging():
     """Configure structured logging for the application."""
+    # Create logs directory if it doesn't exist
+    import os
+    from ..config import ExecutionMode
+    
+    handlers = [logging.StreamHandler()]
+    
+    # In DEV/STAGING, add file handlers
+    if settings.logging.mode in [ExecutionMode.DEV, ExecutionMode.STAGING]:
+        os.makedirs("logs", exist_ok=True)
+        
+        # App Log
+        file_handler = logging.FileHandler(settings.logging.app_log_path)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        handlers.append(file_handler)
+        
+        # Pipeline Log
+        pipeline_handler = logging.FileHandler(settings.logging.pipeline_log_path)
+        pipeline_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        pipeline_logger = logging.getLogger("pipeline")
+        pipeline_logger.addHandler(pipeline_handler)
+        pipeline_logger.propagate = True # Also go to main log
+        
+        # Search Log
+        search_handler = logging.FileHandler(settings.logging.search_log_path)
+        search_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        search_logger = logging.getLogger("search_orchestrator")
+        search_logger.addHandler(search_handler)
+        search_logger.propagate = True
+        
     # Configure standard library logging
     logging.basicConfig(
         level=getattr(logging, settings.logging.level.upper()),
         format="%(message)s",
-        handlers=[logging.StreamHandler()]
+        handlers=handlers,
+        force=True # Override existing config
     )
 
     # Configure structlog
@@ -29,7 +59,9 @@ def setup_logging():
             getattr(logging, settings.logging.level.upper())
         ),
         context_class=dict,
-        logger_factory=structlog.WriteLoggerFactory(),
+        logger_factory=structlog.WriteLoggerFactory(
+            file=open(settings.logging.app_log_path, "a") if settings.logging.mode in [ExecutionMode.DEV, ExecutionMode.STAGING] else None
+        ),
         cache_logger_on_first_use=True,
     )
 

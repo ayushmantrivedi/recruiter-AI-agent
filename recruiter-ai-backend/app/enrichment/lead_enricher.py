@@ -81,8 +81,38 @@ class LeadEnricher:
             # Use confidence_score as the base score
             score_value = enriched.get("confidence_score", 50.0)
             
-            # Derive confidence from score (normalized 0-1)
-            confidence_value = min(1.0, score_value / 100.0)
+            # FIXED: Realistic confidence calculation (0.4-0.95 range)
+            # Base confidence on score normalization with floor and ceiling
+            # Lower scores get lower confidence, but never below 0.4
+            # Higher scores get higher confidence, but capped at 0.95
+            
+            # Normalize score to 0-1 range
+            normalized_score = score_value / 100.0
+            
+            # Apply floor (0.4) and ceiling (0.95) with scaling
+            # Formula: 0.4 + (normalized_score * 0.55)
+            # This maps: 0 -> 0.4, 50 -> 0.675, 100 -> 0.95
+            base_confidence = 0.4 + (normalized_score * 0.55)
+            
+            # Adjust based on evidence count (if available)
+            evidence_count = enriched.get("evidence_count", 0)
+            if evidence_count > 0:
+                # More evidence = higher confidence (up to +0.05)
+                evidence_boost = min(evidence_count * 0.01, 0.05)
+                base_confidence = min(base_confidence + evidence_boost, 0.95)
+            
+            # Adjust based on source reliability
+            source = enriched.get("source", "unknown")
+            source_reliability = {
+                "company_api": 0.05,      # Direct company API = most reliable
+                "startup_db": 0.03,       # Curated database = reliable
+                "job_board": 0.0,         # Job boards = baseline
+                "unknown": -0.05          # Unknown source = less reliable
+            }
+            reliability_adjustment = source_reliability.get(source, 0.0)
+            base_confidence = max(0.4, min(base_confidence + reliability_adjustment, 0.95))
+            
+            confidence_value = round(base_confidence, 3)
             
             # Only set if not already present
             if "score" not in enriched:

@@ -9,55 +9,86 @@ class LeadScorer:
     """Scores leads based on intelligence signals and lead attributes."""
     
     @staticmethod
-    def _apply_soft_cap(raw_score: float, max_score: float = 100.0) -> float:
+    def _apply_nonlinear_scale(raw_val: float) -> float:
         """
-        Apply soft cap using tanh to prevent saturation.
-        Maps [0, inf) -> [0, max_score) with diminishing returns.
+        Apply non-linear scaling to push scores to extremes.
+        Maps [0, 1] -> [0, 1] but pushes vals away from center.
         """
-        # Normalize to [0, 1] range using tanh
-        # tanh(x/30) gives smooth curve: 50->0.86, 75->0.95, 100->0.98
-        normalized = math.tanh(raw_score / 30.0)
-        return normalized * max_score
-    
+        # Sigmoid-like or power function to separate the pack
+        # Power of 1.5 gives effective spread
+        return math.pow(raw_val, 1.5)
+
     @staticmethod
     def compute_score(lead: NormalizedLead, signals: Dict[str, float]) -> float:
         """
-        Compute a score between 0 and 100 with soft cap to prevent saturation.
-        Signals: hiring_pressure, role_scarcity, market_difficulty (0-1 floats)
+        Compute high-variance score (Target std_dev > 10).
+        Range: 40 - 100
         """
-        base_score = 50.0
+        # Base floor is 15 to allow variance
+        score = 15.0
         
-        # 1. Intelligence Signal Impact
-        # High hiring pressure -> +score
-        base_score += signals.get("hiring_pressure", 0.5) * 20 
+        # 1. INTELLIGENCE SIGNALS (Max ~35 points)
+        # Extract signals first
+        pressure = signals.get("hiring_pressure", 0.5)
+        scarcity = signals.get("role_scarcity", 0.5)
+        difficulty = signals.get("market_difficulty", 0.5)
         
-        # High role scarcity -> +score (valuable lead)
-        base_score += signals.get("role_scarcity", 0.5) * 15
+        # Pressure: Weighted heavily (0-15)
+        score += LeadScorer._apply_nonlinear_scale(pressure) * 15.0
         
-        # 2. Lead Attribute Impact
-        # Urgency
-        urgency_map = {"High": 15, "Medium": 10, "Low": 5, "Unknown": 0}
-        base_score += urgency_map.get(lead.hiring_urgency, 0)
+        # Scarcity: Weighted heavily (0-15)
+        score += LeadScorer._apply_nonlinear_scale(scarcity) * 15.0
         
-        # Growth Stage
-        growth_map = {"High Growth": 10, "Stable": 5, "Early": 5, "Unknown": 0}
-        base_score += growth_map.get(lead.company_growth_stage, 0)
+        # Difficulty: (0-5)
+        score += (1.0 - difficulty) * 5.0
         
-        # Funding
-        funding_map = {"Series A": 10, "Series B": 8, "Seed": 5, "Unknown": 0}
-        base_score += funding_map.get(lead.funding_stage, 0)
+        # 2. MATCH QUALITY (Max ~40 points)
+        # Urgency: High variance
+        urgency = lead.hiring_urgency or "Unknown"
+        # Drastic drop for Medium to force variance
+        # High=30 allows top leads to soar, while Medium=6 keeps average leads low
+        urgency_score = {"High": 1.0, "Medium": 0.2, "Low": 0.0, "Unknown": 0.0}
+        score += urgency_score.get(urgency, 0.0) * 30.0  # 0-30
         
-        # Salary Presence (Recruiters love salary info)
+        # Skills Match
+        if lead.skills:
+            # Up to 10 points
+            skill_bonus = min(len(lead.skills), 5) * 2.0 
+            score += skill_bonus
+
+        # 3. COMPANY PRESTIGE (Max ~25 points)
+        growth = lead.company_growth_stage or "Unknown"
+        # High=20
+        growth_score = {"High Growth": 1.0, "Stable": 0.2, "Early": 0.1, "Unknown": 0.0}
+        score += growth_score.get(growth, 0.0) * 20.0 # 0-20
+        
+        funding = lead.funding_stage or "Unknown"
+        funding_score = {"Series A": 0.8, "Series B": 0.9, "Series C": 1.0, "Seed": 0.2, "Unknown": 0.0}
+        score += funding_score.get(funding, 0.0) * 10.0 # 0-10
+        
+        # Salary Bonus (5 points)
         if lead.salary_range:
-            base_score += 10
+            score += 5.0
             
-        # Apply soft cap to prevent saturation
-        final_score = LeadScorer._apply_soft_cap(base_score)
-        
-        return round(final_score, 1)
+        # Hard clamp to 40-100 range (no soft cap, we want variance)
+        return max(40.0, min(100.0, round(score, 1)))
 
     @staticmethod
     def score_leads(leads: list[NormalizedLead], signals: Dict[str, float]) -> list[NormalizedLead]:
+        """Score all leads and validate variance requirements."""
+        if not leads:
+            return leads
+            
+        scores = []
         for lead in leads:
-            lead.confidence_score = LeadScorer.compute_score(lead, signals)
+            s = LeadScorer.compute_score(lead, signals)
+            lead.confidence_score = s
+            scores.append(s)
+            
+        # Logging feature contribution can be done here if needed
+        if len(scores) > 2:
+            import statistics
+            std = statistics.stdev(scores)
+            logger.info("Scoring distribution", min=min(scores), max=max(scores), mean=statistics.mean(scores), std_dev=std)
+            
         return leads

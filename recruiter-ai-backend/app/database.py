@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON, Boolean, ForeignKey, Index
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, JSON, Boolean, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func, text
@@ -106,8 +106,11 @@ class Lead(Base):
     id = Column(Integer, primary_key=True, index=True)
     query_id = Column(String(36), ForeignKey("queries.id"), nullable=False)
 
-    # Company information
+    # Core Identity
     company_name = Column(String(255), nullable=False)
+    role = Column(String(255), nullable=True)     # Added for deduplication identity
+    location = Column(String(255), nullable=True) # Added for deduplication identity
+    
     company_domain = Column(String(255))
     company_size = Column(String(50))
     industry = Column(String(100))
@@ -132,6 +135,12 @@ class Lead(Base):
     outreach_generated = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Constraints
+    # Ensure unique leads per query (company + role + location)
+    __table_args__ = (
+        UniqueConstraint('company_name', 'role', 'location', 'query_id', name='uq_lead_identity_per_query'),
+    )
 
     # Relationships
     query = relationship("Query", back_populates="leads")

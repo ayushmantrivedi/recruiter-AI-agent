@@ -1,4 +1,4 @@
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 import os
@@ -51,8 +51,28 @@ class APISettings(BaseSettings):
     mediastack_rate_limit: int = Field(default=500, env="MEDIASTACK_RATE_LIMIT")
 
 
+from enum import Enum
+
+class SearchMode(str, Enum):
+    DEV = "dev"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
 class AgentSettings(BaseSettings):
     """Agent configuration settings."""
+    # Search Mode (Controls provider enablement)
+    search_mode: SearchMode = Field(default=SearchMode.DEV, env="SEARCH_MODE")
+    
+    # Provider Flags - Controlled by SearchMode
+    enable_mock_sources: bool = Field(default=True, env="ENABLE_MOCK_SOURCES")
+    enable_arbeitnow: bool = Field(default=True, env="ENABLE_ARBEITNOW") 
+    enable_github_jobs: bool = Field(default=False, env="ENABLE_GITHUB_JOBS") # DEPRECATED
+    enable_paid_apis: bool = Field(default=False, env="ENABLE_PAID_APIS")
+
+    # Circuit Breaker Config
+    external_api_timeout: float = Field(default=5.0, env="EXTERNAL_API_TIMEOUT")
+    external_api_circuit_breaker_threshold: int = Field(default=3, env="EXTERNAL_API_CIRCUIT_BREAKER_THRESHOLD")
+
     # Concept Reasoner
     concept_model_name: str = Field(default="bert-base-uncased", env="CONCEPT_MODEL_NAME")
     reasoning_model: str = Field(default="gpt-3.5-turbo", env="REASONING_MODEL")
@@ -76,12 +96,52 @@ class AgentSettings(BaseSettings):
         "mediastack": 2.0,
         "company_metadata": 3.0
     })
+    
+    @model_validator(mode='after')
+    def enforce_search_mode_rules(self):
+        """Enforce provider flags based on Search Mode."""
+        if self.search_mode == SearchMode.DEV:
+            self.enable_mock_sources = True
+            self.enable_arbeitnow = True
+            self.enable_github_jobs = False 
+            self.enable_paid_apis = False
+            
+        elif self.search_mode == SearchMode.STAGING:
+            # Staging: Public APIs allowed, Mocks disabled
+            self.enable_mock_sources = False
+            self.enable_arbeitnow = True
+            self.enable_github_jobs = False 
+            self.enable_paid_apis = False
+            
+        elif self.search_mode == SearchMode.PRODUCTION:
+            # Production: Paid APIs only, NO mocks
+            self.enable_mock_sources = False
+            self.enable_arbeitnow = False 
+            self.enable_github_jobs = False
+            self.enable_paid_apis = True
+            
+        return self
 
+
+class ExecutionMode(str, Enum):
+    DEV = "dev"
+    STAGING = "staging"
+    PRODUCTION = "production"
 
 class LoggingSettings(BaseSettings):
     """Logging configuration settings."""
+    # Profiles
+    mode: ExecutionMode = Field(default=ExecutionMode.DEV, env="EXECUTION_MODE")
+    
+    # Common
     level: str = Field(default="INFO", env="LOG_LEVEL")
     format: str = Field(default="json", env="LOG_FORMAT")
+    
+    # File Paths (For DEV/STAGING)
+    app_log_path: str = "logs/app.log"
+    pipeline_log_path: str = "logs/pipeline.log"
+    search_log_path: str = "logs/search.log"
+    
     sentry_dsn: Optional[SecretStr] = Field(default=None, env="SENTRY_DSN")
 
 

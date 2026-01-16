@@ -23,6 +23,27 @@ setup_logging()
 logger = get_logger("main")
 
 
+def verify_database_schema():
+    """Verify that critical database columns exist."""
+    from .database import engine
+    from sqlalchemy import inspect
+    
+    logger.info("Verifying database schema compliance...")
+    inspector = inspect(engine)
+    columns = [c['name'] for c in inspector.get_columns('leads')]
+    
+    required_columns = ['role', 'location']
+    missing = [col for col in required_columns if col not in columns]
+    
+    if missing:
+        error_msg = f"CRITICAL DATABASE ERROR: Missing columns in 'leads' table: {missing}. Run migration script immediately."
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+        
+    logger.info("Schema verification passed: All required columns present.")
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager."""
@@ -36,6 +57,7 @@ async def lifespan(app: FastAPI):
         if not test_db_connection():
             raise Exception("Database connection failed")
         create_tables()
+        verify_database_schema()
         logger.info("Database tables created/verified")
 
         # Initialize Redis cache (optional)
