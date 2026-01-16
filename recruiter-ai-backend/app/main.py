@@ -30,8 +30,9 @@ def verify_database_schema():
     
     logger.info("Verifying database schema compliance...")
     inspector = inspect(engine)
-    columns = [c['name'] for c in inspector.get_columns('leads')]
     
+    # 1. Check leads table columns
+    columns = [c['name'] for c in inspector.get_columns('leads')]
     required_columns = ['role', 'location']
     missing = [col for col in required_columns if col not in columns]
     
@@ -39,8 +40,29 @@ def verify_database_schema():
         error_msg = f"CRITICAL DATABASE ERROR: Missing columns in 'leads' table: {missing}. Run migration script immediately."
         logger.critical(error_msg)
         raise RuntimeError(error_msg)
+    
+    # 2. Check execution_reports table exists (Platform Stabilization Invariant)
+    tables = inspector.get_table_names()
+    if 'execution_reports' not in tables:
+        error_msg = "CRITICAL DATABASE ERROR: 'execution_reports' table missing. Run update_schema.py immediately."
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
         
-    logger.info("Schema verification passed: All required columns present.")
+    logger.info("Schema verification passed: All required columns and tables present.")
+
+
+def verify_search_providers():
+    """Verify search orchestrator has active providers (Platform Stabilization Invariant)."""
+    from .search.search_orchestrator import search_orchestrator
+    
+    if not search_orchestrator.sources:
+        error_msg = "CRITICAL: SearchOrchestrator initialized with 0 providers. Check SEARCH_MODE configuration."
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+        
+    provider_names = [s.__class__.__name__ for s in search_orchestrator.sources]
+    logger.info("Search provider verification passed", providers=provider_names)
+
 
 
 
@@ -70,6 +92,9 @@ async def lifespan(app: FastAPI):
         # Initialize pipeline and agents
         await recruiter_pipeline.initialize()
         logger.info("AI pipeline initialized")
+        
+        # Verify search providers are properly configured (Platform Stability)
+        verify_search_providers()
 
         logger.info("Recruiter AI Platform startup complete")
 

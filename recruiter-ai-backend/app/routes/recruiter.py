@@ -299,9 +299,15 @@ async def process_query_background(query_id: str, query: str, recruiter_id: str 
                        attempt=attempt + 1,
                        max_attempts=MAX_RETRIES)
 
-            # Execute pipeline with timeout
+            # Execute pipeline with timeout - UNIFIED PATH
+            # Uses the same RecruiterPipeline.process_recruiter_query as sync path
+            # This ensures ExecutionReport is always created and persisted
             await asyncio.wait_for(
-                _execute_pipeline_with_checkpoint(query_id, query, recruiter_id),
+                recruiter_pipeline.process_recruiter_query(
+                    query,
+                    recruiter_id,
+                    query_id=query_id
+                ),
                 timeout=JOB_TIMEOUT_SECONDS
             )
 
@@ -345,104 +351,9 @@ async def process_query_background(query_id: str, query: str, recruiter_id: str 
             await asyncio.sleep(retry_delay)
 
 
-async def _execute_pipeline_with_checkpoint(query_id: str, query: str, recruiter_id: str = None):
-    """Execute pipeline with detailed checkpoints."""
-    import traceback
-
-    logger.info("🔍 PIPELINE_STARTED", query_id=query_id)
-
-    try:
-        # Step 1: Intelligence Engine (Deterministic)
-        logger.info("🧠 STEP_1_INTELLIGENCE_ENGINE_STARTED", query_id=query_id)
-        
-        # Call deterministic engine (sync)
-        intelligence_result = recruiter_pipeline.intelligence_engine.process(query)
-        
-        # Prepare intelligence envelope for Search Orchestrator
-        intelligence_envelope = {
-            "intelligence": {
-                "intent": intelligence_result.intent,
-                "role": intelligence_result.role,
-                "skills": intelligence_result.skills,
-                "experience": intelligence_result.experience,
-                "seniority": intelligence_result.seniority,
-                "location": intelligence_result.location
-            },
-            "signals": {
-                "hiring_pressure": intelligence_result.hiring_pressure,
-                "role_scarcity": intelligence_result.role_scarcity,
-                "outsourcing_likelihood": intelligence_result.outsourcing_likelihood,
-                "market_difficulty": intelligence_result.market_difficulty
-            }
-        }
-
-        # Map to legacy format for compatibility
-        concept_vector = intelligence_result.dict()
-        constraints = {
-            "role": intelligence_result.role,
-            "location": intelligence_result.location,
-            "experience": intelligence_result.experience,
-            "seniority": intelligence_result.seniority,
-            "skills": intelligence_result.skills
-        }
-        
-        logger.info("🧠 STEP_1_INTELLIGENCE_ENGINE_COMPLETED",
-                   query_id=query_id,
-                   concept_vector_length=len(concept_vector))
-
-        # Step 2: Search & Ranking Orchestration
-        logger.info("🎯 STEP_2_SEARCH_ORCHESTRATION_STARTED", query_id=query_id)
-        
-        search_result = await recruiter_pipeline.search_orchestrator.orchestrate(
-            query,
-            intelligence_envelope
-        )
-        
-        # Extract results
-        leads = search_result["leads"]
-        evidence_objects = search_result.get("evidence_objects", [])
-        
-        logger.info("🎯 STEP_2_SEARCH_ORCHESTRATION_COMPLETED",
-                   query_id=query_id,
-                   leads_found=len(leads),
-                   total_count=search_result.get("total_count", 0))
-
-        # Step 3: Database Save (Consolidated Step)
-        logger.info("💾 STEP_3_DATABASE_SAVE_STARTED", query_id=query_id)
-        
-        # Calculate orchestration summary
-        orchestration_summary = {
-            "confidence": max([l.get("confidence", 0) for l in leads]) if leads else 0.0,
-            "total_steps": 3, # 3 sources
-            "total_cost": 0.0,
-            "evidence_count": len(evidence_objects)
-        }
-
-        await recruiter_pipeline._save_to_database({
-            "query_id": query_id,
-            "recruiter_id": recruiter_id,
-            "original_query": query,
-            "processing_time": 0,  # Will be updated by _save_to_database logic or unused
-            "concept_vector": concept_vector,
-            "intelligence": intelligence_envelope["intelligence"],
-            "signals": intelligence_envelope["signals"],
-            "constraints": constraints,
-            "orchestration_summary": orchestration_summary,
-            "leads": leads[:20],  # Limit to top 20 leads
-            "total_leads_found": len(leads),
-            "status": "completed",
-            "completed_at": datetime.utcnow().isoformat()
-        })
-        logger.info("💾 STEP_3_DATABASE_SAVE_COMPLETED", query_id=query_id)
-
-        logger.info("🎉 PIPELINE_COMPLETED_SUCCESSFULLY", query_id=query_id)
-
-    except Exception as e:
-        logger.error("💥 PIPELINE_EXECUTION_FAILED",
-                    error=str(e),
-                    query_id=query_id,
-                    traceback=traceback.format_exc())
-        raise
+# REMOVED: _execute_pipeline_with_checkpoint (Split-brain source)
+# The async path now uses RecruiterPipeline.process_recruiter_query directly.
+# This ensures a single, deterministic execution path with full ExecutionReport support.
 
 
 def _mark_job_failed(query_id: str, error_message: str):

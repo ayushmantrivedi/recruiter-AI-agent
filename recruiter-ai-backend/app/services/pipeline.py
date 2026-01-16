@@ -135,18 +135,21 @@ class RecruiterPipeline:
                 total_leads_before_limit = len(limited_leads)
             
             # Get deduplication metrics from orchestrator
-            orchestrator_metrics = search_result.get("metrics", {})
+            # (Now integrated into ExecutionReport)
             
-            # Calculate mock orchestration summary for API compatibility
-            orchestration_cols = {
-                "confidence": max([l.get("confidence", 0) for l in limited_leads]) if limited_leads else 0.0,
-                "total_steps": 3, # 3 sources
-                "total_cost": 0.0,
-                "evidence_count": len(evidence_objects),
-                # Add deduplication metrics
-                "duplicates_removed": orchestrator_metrics.get("duplicates_removed", 0),
-                "duplicate_rate": orchestrator_metrics.get("duplicate_rate", 0.0)
-            }
+            # Orchestration Summary - Use the canonical ExecutionReport
+            execution_report = search_result.get("execution_report")
+            
+            if execution_report:
+                # Update report with pipeline-level context
+                execution_report.query_id = query_id
+                execution_report.leads_saved = len(limited_leads) # Intended save count
+                
+                # Use report as the summary
+                orchestration_summary = execution_report.__dict__
+            else:
+                # Fallback (Should not happen with new Orchestrator)
+                orchestration_summary = search_result.get("orchestration_summary", {})
 
             # Calculate final metrics
             processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -160,9 +163,15 @@ class RecruiterPipeline:
                 "intelligence": intelligence,
                 "signals": signals,
                 "constraints": constraints,
-                "orchestration_summary": orchestration_cols,
+                
+                # Canonical Contracts
+                "orchestration_summary": orchestration_summary,
+                "total_leads_found": execution_report.raw_leads_found if execution_report else len(leads),
                 "leads": limited_leads,
-                "total_leads_found": total_leads_before_limit,  # FIXED: Use count before limiting
+                
+                # Internal Pass-through for DB persistence
+                "execution_report_dto": execution_report,
+                
                 "status": "completed",
                 "completed_at": datetime.utcnow().isoformat()
             }
@@ -217,24 +226,57 @@ class RecruiterPipeline:
             logger.info("💾 DB_SAVE_STARTED", query_id=result["query_id"])
             db_session = SessionLocal()
 
-            # Update existing query record
+            # Update OR Create query record (Upsert)
             query = db_session.query(Query).filter(Query.id == result["query_id"]).first()
+            
             if not query:
-                logger.error("❌ QUERY_RECORD_NOT_FOUND_FOR_UPDATE",
-                           query_id=result["query_id"])
-                raise ValueError(f"Query record not found: {result['query_id']}")
+                logger.info("🆕 CREATING_NEW_QUERY_RECORD", query_id=result["query_id"])
+                # Create new record (Sync path or new test)
+                query = Query(id=result["query_id"])
+                db_session.add(query)
+            else:
+                logger.info("📝 UPDATING_EXISTING_QUERY_RECORD", query_id=result["query_id"])
 
-            # Update the existing record with all results
-            logger.info("📝 DB_UPDATE_QUERY_RECORD", query_id=result["query_id"])
+            # Common fields update
+            query.recruiter_id = result.get("recruiter_id")
+            query.query_text = result["original_query"]
             query.concept_vector = result["concept_vector"]
             query.intelligence = result.get("intelligence")
             query.signals = result.get("signals")
             query.constraints = result["constraints"]
-            query.confidence_score = result["orchestration_summary"]["confidence"]
+            query.confidence_score = result["orchestration_summary"]["confidence"] if "confidence" in result["orchestration_summary"] else 0.0
+            
+            # Prioritize lead max confidence if summary is missing it (ExecutionReport vs Legacy)
+            if not query.confidence_score and result.get("leads"):
+                 query.confidence_score = max([l.get("confidence", 0) for l in result["leads"]])
+            
             query.processing_status = "completed"
-            query.total_cost = result["orchestration_summary"]["total_cost"]
+            query.total_cost = 0.0
             query.execution_time = result["processing_time"]
             query.completed_at = datetime.utcnow()
+
+            # Save Execution Report
+            if "execution_report_dto" in result:
+                from ..database import ExecutionReport
+                dto = result["execution_report_dto"]
+                db_report = ExecutionReport(
+                    query_id=result["query_id"],
+                    raw_leads_found=dto.raw_leads_found,
+                    normalized_leads=dto.normalized_leads,
+                    ranked_leads_count=dto.ranked_leads_count,
+                    leads_saved=dto.leads_saved, # Passed from result
+                    deduplicated_count=dto.deduplicated_count,
+                    skipped_invalid_count=dto.skipped_invalid_count,
+                    providers_called=dto.providers_called,
+                    providers_succeeded=dto.providers_succeeded,
+                    providers_failed=dto.providers_failed,
+                    provider_diagnostics=dto.provider_diagnostics,
+                    execution_time_ms=dto.execution_time_ms,
+                    execution_mode=dto.execution_mode
+                )
+                db_session.add(db_report)
+                logger.info("📊 DB_SAVE_EXECUTION_REPORT", query_id=result["query_id"])
+
 
             # Save leads with error handling
             logger.info("👥 DB_SAVE_LEADS_STARTED",
@@ -348,6 +390,38 @@ class RecruiterPipeline:
 
                 # Get associated leads
                 leads = db.query(Lead).filter(Lead.query_id == query_id).all()
+                
+                # CRITICAL FIX: Get total_leads_found from ExecutionReport
+                from ..database import ExecutionReport as DBExecutionReport
+                execution_report = db.query(DBExecutionReport).filter(
+                    DBExecutionReport.query_id == query_id
+                ).first()
+                
+                # Determine total_leads_found from ExecutionReport (canonical source)
+                if execution_report:
+                    total_leads_found = execution_report.raw_leads_found
+                    orchestration_summary = {
+                        "raw_leads_found": execution_report.raw_leads_found,
+                        "normalized_leads": execution_report.normalized_leads,
+                        "ranked_leads_count": execution_report.ranked_leads_count,
+                        "leads_saved": execution_report.leads_saved,
+                        "providers_called": execution_report.providers_called,
+                        "providers_succeeded": execution_report.providers_succeeded,
+                        "providers_failed": execution_report.providers_failed,
+                        "execution_time_ms": execution_report.execution_time_ms,
+                        "execution_mode": execution_report.execution_mode
+                    }
+                else:
+                    # Fallback: use len(leads) if no ExecutionReport
+                    total_leads_found = len(leads)
+                    orchestration_summary = None
+                    logger.warning("No ExecutionReport found, using fallback", query_id=query_id)
+                
+                # CONTRACT INVARIANT: If leads exist, total_leads_found MUST be > 0
+                if len(leads) > 0 and total_leads_found == 0:
+                    error_msg = f"CONTRACT VIOLATION: len(leads)={len(leads)} but total_leads_found=0"
+                    logger.critical(error_msg, query_id=query_id)
+                    raise RuntimeError(error_msg)
 
                 result = {
                     "query_id": query_id,
@@ -360,6 +434,8 @@ class RecruiterPipeline:
                     "confidence_score": query.confidence_score,
                     "total_cost": query.total_cost,
                     "execution_time": query.execution_time,
+                    "orchestration_summary": orchestration_summary,
+                    "total_leads_found": total_leads_found,  # CRITICAL: Was missing!
                     "leads": [
                         {
                             "company": lead.company_name,

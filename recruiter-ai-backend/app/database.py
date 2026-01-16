@@ -97,6 +97,7 @@ class Query(Base):
     # Note: recruiter relationship removed since recruiter_id is used as string identifier, not foreign key
     leads = relationship("Lead", back_populates="query")
     executions = relationship("AgentExecution", back_populates="query")
+    execution_report = relationship("ExecutionReport", uselist=False, back_populates="query")
 
 
 class Lead(Base):
@@ -209,6 +210,37 @@ class APIFeedback(Base):
         Index('idx_api_feedback_tool_intent', 'tool_name', 'intent_signature'),
         Index('idx_api_feedback_performance', 'success_rate', 'avg_signal_quality'),
     )
+
+
+class ExecutionReport(Base):
+    """Canonical execution report for search orchestration."""
+    __tablename__ = "execution_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    query_id = Column(String(36), ForeignKey("queries.id"), nullable=False)
+
+    # Lead Fidelity
+    raw_leads_found = Column(Integer, default=0)
+    normalized_leads = Column(Integer, default=0)
+    ranked_leads_count = Column(Integer, default=0)
+    leads_saved = Column(Integer, default=0)
+    deduplicated_count = Column(Integer, default=0)
+    skipped_invalid_count = Column(Integer, default=0)
+
+    # Provider Metrics
+    providers_called = Column(Integer, default=0)
+    providers_succeeded = Column(Integer, default=0)
+    providers_failed = Column(Integer, default=0)
+    provider_diagnostics = Column(JSON, default=dict)
+
+    # Performance
+    execution_time_ms = Column(Float, default=0.0)
+    execution_mode = Column(String(50))
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    query = relationship("Query", back_populates="execution_report")
 
 
 class BillingRecord(Base):

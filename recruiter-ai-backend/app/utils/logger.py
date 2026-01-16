@@ -59,9 +59,8 @@ def setup_logging():
             getattr(logging, settings.logging.level.upper())
         ),
         context_class=dict,
-        logger_factory=structlog.WriteLoggerFactory(
-            file=open(settings.logging.app_log_path, "a") if settings.logging.mode in [ExecutionMode.DEV, ExecutionMode.STAGING] else None
-        ),
+        # FIX: Use PrintLoggerFactory for console output (was WriteLoggerFactory to file only)
+        logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,
     )
 

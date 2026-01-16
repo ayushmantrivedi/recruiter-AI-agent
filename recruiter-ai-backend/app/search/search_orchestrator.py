@@ -12,11 +12,11 @@ from dataclasses import dataclass, field
 import time
 
 @dataclass
-class OrchestrationSummary:
-    """Detailed metrics for the search execution."""
+class ExecutionReport:
+    """Canonical execution report for search orchestration."""
     query: str
     execution_mode: str
-    total_duration_ms: float = 0.0
+    execution_time_ms: float = 0.0
     
     # Provider Metrics
     providers_called: int = 0
@@ -25,15 +25,15 @@ class OrchestrationSummary:
     provider_diagnostics: Dict[str, Any] = field(default_factory=dict)
     
     # Lead Fidelity
-    total_raw_leads: int = 0
-    total_normalized_leads: int = 0
-    total_scored_leads: int = 0
-    total_ranked_leads: int = 0
-    total_leads_found: int = 0 # Contract: Pre-truncation count
+    raw_leads_found: int = 0
+    normalized_leads: int = 0
+    ranked_leads_count: int = 0
+    deduplicated_count: int = 0
+    skipped_invalid_count: int = 0
     
-    # Dedup Metrics
-    duplicates_removed: int = 0
-    duplicate_rate: float = 0.0
+    # Pipeline placeholders (filled later)
+    leads_saved: int = 0
+    query_id: str = "" # To be filled by pipeline
 
 class SearchOrchestrator:
     """Orchestrates the search, normalization, scoring, and ranking process."""
@@ -82,13 +82,13 @@ class SearchOrchestrator:
         """
         start_time = time.time()
         
-        # Init Summary
-        summary = OrchestrationSummary(
+        # Init Report
+        report = ExecutionReport(
             query=query,
             execution_mode=self.mode.value
         )
         
-        logger.info("Starting Search Orchestration", query=query, mode=summary.execution_mode)
+        logger.info("Starting Search Orchestration", query=query, mode=report.execution_mode)
         
         # 1. Prepare Constraints
         metadata = intelligence_data.get("intelligence", {})
@@ -102,7 +102,7 @@ class SearchOrchestrator:
         }
         
         # 2. Parallel Fetch with Telemetry
-        summary.providers_called = len(self.sources)
+        report.providers_called = len(self.sources)
         provider_telemetry = {}
         
         async def fetch_with_telemetry(source):
@@ -116,7 +116,7 @@ class SearchOrchestrator:
                     "latency_ms": round(dt, 2),
                     "leads_found": len(leads)
                 }
-                summary.providers_succeeded += 1
+                report.providers_succeeded += 1
                 return leads
             except Exception as e:
                 dt = (time.time() - t0) * 1000
@@ -125,7 +125,7 @@ class SearchOrchestrator:
                     "latency_ms": round(dt, 2),
                     "error": str(e)
                 }
-                summary.providers_failed += 1
+                report.providers_failed += 1
                 return e
 
         fetch_tasks = [fetch_with_telemetry(source) for source in self.sources]
@@ -138,8 +138,8 @@ class SearchOrchestrator:
             elif isinstance(res, Exception):
                 logger.error(f"Source fetch failed: {res}")
         
-        summary.total_raw_leads = len(raw_leads)
-        summary.provider_diagnostics = provider_telemetry
+        report.raw_leads_found = len(raw_leads)
+        report.provider_diagnostics = provider_telemetry
         
         logger.info(f"Fetched {len(raw_leads)} raw leads", telemetry=provider_telemetry)
         
@@ -149,19 +149,17 @@ class SearchOrchestrator:
         
         # 3. Normalize
         normalized_leads = self.normalizer.batch_normalize(raw_leads)
-        summary.total_normalized_leads = len(normalized_leads)
+        report.normalized_leads = len(normalized_leads)
         
         # 4. Score
         scored_leads = self.scorer.score_leads(normalized_leads, signals)
-        summary.total_scored_leads = len(scored_leads)
         
         # 5. Rank
         ranked_leads = self.ranker.rank(scored_leads)
-        summary.total_ranked_leads = len(ranked_leads)
+        report.ranked_leads_count = len(ranked_leads)
         
         # Metrics
-        summary.duplicates_removed = len(scored_leads) - len(ranked_leads)
-        summary.duplicate_rate = round(summary.duplicates_removed / len(scored_leads), 3) if scored_leads else 0.0
+        report.deduplicated_count = len(scored_leads) - len(ranked_leads)
         
         # 6. Enrich
         from ..enrichment.lead_enricher import LeadEnricher
@@ -169,29 +167,16 @@ class SearchOrchestrator:
         enriched_leads = LeadEnricher.enrich_batch(lead_dicts, metadata, signals)
         
         # 7. Finalize
-        summary.total_leads_found = len(enriched_leads) # Pre-truncation count
-        summary.total_duration_ms = round((time.time() - start_time) * 1000, 2)
+        report.execution_time_ms = round((time.time() - start_time) * 1000, 2)
         
-        # Validation
-        if summary.total_leads_found < len(enriched_leads):
-             # Should be impossible if set above, but kept for sanity
-             summary.total_leads_found = len(enriched_leads)
-
         return {
             "leads": enriched_leads,
-            "total_count": summary.total_leads_found,
+            "total_count": report.raw_leads_found, # CORRECT: Use raw count for total found
             "evidence_objects": enriched_leads,
             "top_companies": list(set(l.get("company_name", "Unknown") for l in enriched_leads[:5])),
-            "metrics": {
-                "raw_leads_fetched": summary.total_raw_leads,
-                "normalized_leads": summary.total_normalized_leads,
-                "scored_leads": summary.total_scored_leads,
-                "unique_leads": summary.total_ranked_leads,
-                "duplicates_removed": summary.duplicates_removed,
-                "duplicate_rate": summary.duplicate_rate,
-                "provider_diagnostics": summary.provider_diagnostics
-            },
-            "orchestration_summary": summary.__dict__
+            "execution_report": report, # Pass the object for pipeline to use
+            # Legacy/Observability Dict
+            "orchestration_summary": report.__dict__
         }
 
 # Global instance
