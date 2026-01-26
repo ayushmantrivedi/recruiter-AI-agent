@@ -118,6 +118,10 @@ class IntelligenceSignals(BaseModel):
     outsourcing_likelihood: float
     market_difficulty: float
 
+
+# Import Synthesis Agent
+from ..agents.synthesis_agent import synthesis_agent
+
 class QueryResponse(BaseModel):
     """Response model for query processing."""
     query_id: str
@@ -129,6 +133,9 @@ class QueryResponse(BaseModel):
     intelligence: Optional[IntelligenceMetadata] = None
     signals: Optional[IntelligenceSignals] = None
     
+    # Synthesis Field (New)
+    synthesis_report: Optional[str] = None
+    
     # Legacy / Optional
     concept_vector: Optional[Dict[str, Any]] = None # Relaxed type for backward compat
     
@@ -138,6 +145,48 @@ class QueryResponse(BaseModel):
     total_leads_found: int = 0
     completed_at: Optional[str] = None
     error: Optional[str] = None
+
+# ... (LeadResponse, etc remain same)
+
+@router.get("/query/{query_id}", response_model=QueryResponse)
+async def get_query_results(query_id: str):
+    """Get the results of a processed query.
+
+    Returns the complete results once processing is finished,
+    or current status if still processing.
+    """
+    try:
+        logger.info("Getting query status", query_id=query_id)
+        result = await recruiter_pipeline.get_query_status(query_id)
+        logger.info("Pipeline result", query_id=query_id, result=result)
+
+        if not result:
+            logger.error("Query not found in pipeline", query_id=query_id)
+            raise HTTPException(status_code=404, detail="Query not found")
+            
+        # SYNTHESIS HOOK: If completed but no briefing, generate it now.
+        if result["status"] == "completed" and not result.get("synthesis_report"):
+             # Get leads and summary from result dict
+             leads = result.get("leads", [])
+             summary = result.get("orchestration_summary", {})
+             query_text = result.get("original_query", "")
+             
+             # Generate on the fly (fast enough for mock, cache later)
+             briefing = await synthesis_agent.generate_briefing(
+                 query_id=query_id,
+                 query_text=query_text,
+                 leads=leads,
+                 orchestration_summary=summary
+             )
+             result["synthesis_report"] = briefing
+
+        return QueryResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Query results retrieval failed", error=str(e), query_id=query_id)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve query results: {str(e)}")
 
 
 class LeadResponse(BaseModel):
@@ -385,29 +434,7 @@ def _mark_job_failed(query_id: str, error_message: str):
                 pass
 
 
-@router.get("/query/{query_id}", response_model=QueryResponse)
-async def get_query_results(query_id: str):
-    """Get the results of a processed query.
 
-    Returns the complete results once processing is finished,
-    or current status if still processing.
-    """
-    try:
-        logger.info("Getting query status", query_id=query_id)
-        result = await recruiter_pipeline.get_query_status(query_id)
-        logger.info("Pipeline result", query_id=query_id, result=result)
-
-        if not result:
-            logger.error("Query not found in pipeline", query_id=query_id)
-            raise HTTPException(status_code=404, detail="Query not found")
-
-        return QueryResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Query results retrieval failed", error=str(e), query_id=query_id)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve query results: {str(e)}")
 
 
 @router.get("/stats/{recruiter_id}", response_model=RecruiterStatsResponse)

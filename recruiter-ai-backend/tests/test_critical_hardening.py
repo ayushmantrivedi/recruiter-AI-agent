@@ -13,6 +13,15 @@ def mock_session_local():
         mock.return_value = mock_instance
         yield mock
 
+# FIX: Patch global settings to ensure valid state for tests
+from app.config import SearchMode
+@pytest.fixture(autouse=True)
+def mock_valid_config():
+    with patch("app.config.settings.agent.search_mode", SearchMode.DEV), \
+         patch("app.config.settings.agent.enable_paid_apis", False), \
+         patch("app.config.settings.agent.enable_mock_sources", True):
+         yield
+
 # ==========================================
 # 1. Pipeline Integrity Tests
 # ==========================================

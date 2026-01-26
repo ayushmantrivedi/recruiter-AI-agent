@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import numpy as np
 from ..config import settings
-from ..utils.logger import get_logger, log_agent_action
+from ..utils.logger import get_logger
 from ..utils.cache import cache
 from ..apis.job_apis import job_api_manager
 from ..apis.news_apis import news_api_manager
@@ -185,8 +185,8 @@ class ActionOrchestrator:
                 state["confidence"] = new_confidence
 
                 # Log step completion
-                log_agent_action(
-                    agent_name="action_orchestrator",
+                logger.info("agent_action",
+                    agent="action_orchestrator",
                     action="tool_execution",
                     query_id=query_id,
                     tool_name=tool_name,

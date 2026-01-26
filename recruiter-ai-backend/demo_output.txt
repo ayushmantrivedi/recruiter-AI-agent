@@ -1,0 +1,33 @@
+🚀 Connecting to Recruiter AI at http://localhost:8001/api/recruiter...
+
+📨 Submitting Query: 'Senior Backend Engineer with Python and AWS experience'
+✅ Job Accepted! ID: 82c432b0-c20d-4d25-8998-dd4d31721a01
+
+⏳ Polling for results...
+✅ Status: completed
+
+============================================================
+🤖 AI EXECUTIVE BRIEFING
+============================================================
+
+
+### 🎯 Executive Briefing
+
+I've analyzed the market for **"Senior Backend Engineer with Python and AWS experience"** and found **4 high-priority candidates**.
+
+**Top Recommendation:**
+**Nebula AI** (Score: 94.2) stands out significantly. Competitive talent market.
+
+**Market Context:**
+The talent pool confirms your requirements are realistic, though most strong profiles are concentrated in companies with recent funding events.
+
+**Suggested Action:**
+Start personalized outreach to the top 5 candidates immediately, focusing on the "Growth" angle.
+        
+
+------------------------------------------------------------
+📋 DATA SUMMARY
+------------------------------------------------------------
+Total Found: 4
+Strategies Used: dev
+Top Candidate: Nebula AI

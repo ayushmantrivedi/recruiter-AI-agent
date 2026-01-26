@@ -99,23 +99,24 @@ class AgentSettings(BaseSettings):
     
     @model_validator(mode='after')
     def enforce_search_mode_rules(self):
-        """Enforce provider flags based on Search Mode."""
+        """Enforce provider flags based on Search Mode.
+        CRITICAL: This ensures we never accidentally mock in prod or pay in dev.
+        """
         if self.search_mode == SearchMode.DEV:
             self.enable_mock_sources = True
-            self.enable_arbeitnow = True
-            self.enable_github_jobs = False 
-            self.enable_paid_apis = False
+            # In DEV, we can toggle external APIs manually if needed, but default safe
+            if self.enable_paid_apis:
+                 raise ValueError("Cannot enable PAID APIs in DEV mode. Switch to STAGING or PRODUCTION.")
             
         elif self.search_mode == SearchMode.STAGING:
             # Staging: Public APIs allowed, Mocks disabled
             self.enable_mock_sources = False
-            self.enable_arbeitnow = True
-            self.enable_github_jobs = False 
-            self.enable_paid_apis = False
+            self.enable_paid_apis = False # Safe default
             
         elif self.search_mode == SearchMode.PRODUCTION:
             # Production: Paid APIs only, NO mocks
-            self.enable_mock_sources = False
+            if self.enable_mock_sources:
+                raise ValueError("Cannot enable MOCK sources in PRODUCTION mode.")
             self.enable_arbeitnow = False 
             self.enable_github_jobs = False
             self.enable_paid_apis = True
