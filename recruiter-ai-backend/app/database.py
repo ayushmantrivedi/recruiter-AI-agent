@@ -90,6 +90,7 @@ class Query(Base):
     total_cost = Column(Float, default=0.0)
     execution_time = Column(Float)  # seconds
     tools_used = Column(JSON, default=list)
+    synthesis_report = Column(Text, nullable=True) # Persisted AI briefing
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True))
 

@@ -24,33 +24,37 @@ class IntelligenceResult:
 
 class IntelligenceEngine:
     @staticmethod
-    def process(query_text: str) -> IntelligenceResult:
-        # 1. Parse
-        parsed = QueryParser.parse(query_text)
+    async def process(query_text: str) -> IntelligenceResult:
+        # 1. Parse (using global instance)
+        from .query_parser import query_parser
+        parsed_dict = await query_parser.parse(query_text)
         
-        # 2. Intent
-        intent_res = IntentClassifier.classify(parsed.normalized)
+        # 2. Intent (mock implementation for now based on parsed role)
+        role = parsed_dict.get("role", "unknown")
+        intent = "hiring" if role else "general"
         
         # 3. Extract entities
-        profile = RoleExtractor.extract(parsed.normalized)
+        # Map dictionary back to what RoleExtractor expects or just use dictionary directly
+        # For now, let's just use the parsed data directly to construct profile
         
         # 4. Compute Signals
         signals = SignalEngine.compute_signals(
-            intent=intent_res.intent,
-            role=profile.role,
-            seniority=profile.seniority,
-            location=profile.location
+            intent=intent,
+            role=role,
+            seniority=parsed_dict.get("experience", "Unknown"), # simplified mapping
+            location=parsed_dict.get("location", "Remote")
         )
         
         return IntelligenceResult(
-            intent=intent_res.intent,
-            role=profile.role,
-            skills=profile.skills,
-            experience=profile.experience,
-            seniority=profile.seniority,
-            location=profile.location,
+            intent=intent,
+            role=role,
+            skills=parsed_dict.get("skills", []),
+            experience=5 if parsed_dict.get("experience") else 1, # fast fallback
+            seniority=parsed_dict.get("experience", "Mid-Level"),
+            location=parsed_dict.get("location", "Remote"),
             hiring_pressure=signals["hiring_pressure"],
             role_scarcity=signals["role_scarcity"],
             outsourcing_likelihood=signals["outsourcing_likelihood"],
             market_difficulty=signals["market_difficulty"]
         )
+

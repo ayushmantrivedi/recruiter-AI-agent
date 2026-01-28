@@ -90,15 +90,23 @@ class SearchOrchestrator:
         
         logger.info("Starting Search Orchestration", query=query, mode=report.execution_mode)
         
-        # 1. Prepare Constraints
+        # 1. LLM Query Parsing (Ear) - Extract structured search terms
+        from ..intelligence.query_parser import query_parser
+        parsed_query = await query_parser.parse(query)
+        
+        logger.info(f"Query parsed: {query}, Role: {parsed_query.get('role')}")
+        
+        # 2. Prepare Constraints from parsed query + intelligence data
         metadata = intelligence_data.get("intelligence", {})
         signals = intelligence_data.get("signals", {})
         
+        # Prefer LLM-parsed values, fall back to intelligence metadata
         constraints = {
-            "role": metadata.get("role", query),
-            "location": metadata.get("location") or "Remote",
-            "skills": metadata.get("skills", []),
-            "seniority": metadata.get("seniority", "")
+            "role": parsed_query.get("role") or metadata.get("role", query),
+            "location": parsed_query.get("location") or metadata.get("location") or "Remote",
+            "skills": parsed_query.get("skills") or metadata.get("skills", []),
+            "seniority": metadata.get("seniority", ""),
+            "keywords": parsed_query.get("keywords", [])  # New: LLM-extracted keywords
         }
         
         # 2. Parallel Fetch with Telemetry

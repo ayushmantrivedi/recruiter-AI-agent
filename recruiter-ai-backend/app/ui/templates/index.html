@@ -1,98 +1,295 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
 
-{% block title %}Recruiter AI - Home{% endblock %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter AI | Talent Intelligence</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
 
-{% block content %}
-<div class="px-4 py-6 sm:px-0">
-    <!-- Header -->
-    <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-gray-900 mb-2">Recruiter AI Platform</h1>
-        <p class="text-xl text-gray-600">Find top talent with AI-powered intelligence</p>
-    </div>
+<body>
 
-    <!-- Query Form -->
-    <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Submit a Recruiter Query</h2>
-
-        <form
-            hx-post="/ui/query"
-            hx-target="#results"
-            hx-swap="innerHTML"
-            hx-indicator="#submit-indicator"
-            class="space-y-4"
-        >
-            <div>
-                <label for="query" class="block text-sm font-medium text-gray-700 mb-2">
-                    Search Query
-                </label>
-                <textarea
-                    id="query"
-                    name="query"
-                    rows="3"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., Find senior Python developers in San Francisco with 5+ years experience"
-                    required
-                ></textarea>
-            </div>
-
-            <div>
-                <label for="recruiter_id" class="block text-sm font-medium text-gray-700 mb-2">
-                    Recruiter ID (Optional)
-                </label>
-                <input
-                    type="text"
-                    id="recruiter_id"
-                    name="recruiter_id"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., 1"
-                >
-            </div>
-
-            <div class="flex items-center justify-between">
-                <button
-                    type="submit"
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                    <span id="submit-indicator" class="htmx-indicator">
-                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                    </span>
-                    <span id="submit-text">Submit Query</span>
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Results Area -->
-    <div id="results" class="max-w-4xl mx-auto">
-        <!-- Initial state message -->
-        <div class="text-center py-12">
-            <div class="text-gray-500">
-                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <p class="text-lg">Enter a query above to find top talent</p>
-            </div>
+    <!-- Auth Overlay -->
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>🚀 Recruiter AI</h2>
+            <p>Enter your workspace ID to access the talent intelligence platform.</p>
+            <input type="text" id="workspace-id" placeholder="e.g. recruiter_john" />
+            <button class="primary-btn" onclick="authenticate()">Enter Workspace</button>
         </div>
     </div>
-</div>
-{% endblock %}
 
-{% block extra_scripts %}
-<script>
-// Update submit button text during HTMX request
-document.body.addEventListener('htmx:beforeRequest', function(evt) {
-    if (evt.target.matches('form[hx-post="/ui/query"]')) {
-        document.getElementById('submit-text').textContent = 'Processing...';
-    }
-});
+    <!-- Main Application -->
+    <div id="app-container">
 
-document.body.addEventListener('htmx:afterRequest', function(evt) {
-    if (evt.target.matches('form[hx-post="/ui/query"]')) {
-        document.getElementById('submit-text').textContent = 'Submit Query';
-    }
-});
-</script>
-{% endblock %}
+        <!-- Sidebar -->
+        <aside>
+            <div class="brand">
+                <div class="brand-icon">◆</div>
+                <span>Recruiter AI</span>
+            </div>
+
+            <div class="section-label">Recent Searches</div>
+            <div id="history-list" class="history-list">
+                <!-- Items injected by JS -->
+            </div>
+
+            <div class="user-section">
+                <div class="user-info" id="user-display"></div>
+                <button class="logout-btn" onclick="logout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main>
+            <div id="results-area">
+                <div class="welcome-state">
+                    <h1>Find Top Talent</h1>
+                    <p>Describe the role you're hiring for and let AI analyze the market for you.</p>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="search-container">
+                <div class="input-wrapper">
+                    <input type="text" id="search-input" placeholder="e.g. Senior ML Engineer with Python experience..."
+                        onkeypress="handleEnter(event)">
+                    <button class="search-btn" onclick="submitQuery()">Search</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // State
+        let currentUser = localStorage.getItem('recruiter_id');
+        const API_BASE = '/api/recruiter';
+
+        // --- Auth Logic ---
+        function checkAuth() {
+            if (currentUser) {
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('app-container').classList.add('authenticated');
+                document.getElementById('user-display').innerText = `Signed in as ${currentUser}`;
+                loadHistory();
+            }
+        }
+
+        function authenticate() {
+            const id = document.getElementById('workspace-id').value.trim();
+            if (id) {
+                currentUser = id;
+                localStorage.setItem('recruiter_id', id);
+                checkAuth();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('recruiter_id');
+            location.reload();
+        }
+
+        // --- API Interaction ---
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/queries?recruiter_id=${currentUser}&limit=20`);
+                const data = await res.json();
+
+                const list = document.getElementById('history-list');
+                list.innerHTML = '';
+
+                if (data.queries && data.queries.length > 0) {
+                    data.queries.forEach(q => {
+                        const div = document.createElement('div');
+                        div.className = 'history-item';
+                        div.innerText = q.query_text;
+                        div.onclick = () => loadQueryDetail(q.id);
+                        list.appendChild(div);
+                    });
+                } else {
+                    list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">No searches yet</div>';
+                }
+            } catch (e) {
+                console.error("Failed to load history", e);
+            }
+        }
+
+        async function submitQuery() {
+            const input = document.getElementById('search-input');
+            const query = input.value.trim();
+            if (!query) return;
+
+            renderLoading(query);
+            input.value = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, recruiter_id: currentUser })
+                });
+                const data = await res.json();
+
+                pollStatus(data.query_id);
+                loadHistory();
+
+            } catch (e) {
+                renderError(e.message);
+            }
+        }
+
+        async function pollStatus(queryId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/query/${queryId}`);
+                    const data = await res.json();
+
+                    if (data.status === 'completed') {
+                        clearInterval(interval);
+                        renderResult(data);
+                    } else if (data.status === 'failed') {
+                        clearInterval(interval);
+                        renderError(data.error || 'Query processing failed');
+                    }
+                } catch (e) {
+                    clearInterval(interval);
+                    renderError("Connection lost");
+                }
+            }, 1500);
+        }
+
+        async function loadQueryDetail(queryId) {
+            renderLoading("Loading...");
+            try {
+                const res = await fetch(`${API_BASE}/query/${queryId}`);
+                const data = await res.json();
+                renderResult(data);
+            } catch (e) {
+                renderError(e.message);
+            }
+        }
+
+        // --- Rendering ---
+        function renderLoading(text) {
+            document.getElementById('results-area').innerHTML = `
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing talent market...</div>
+                    <div class="loading-query">"${escapeHtml(text)}"</div>
+                </div>
+            `;
+        }
+
+        function renderError(msg) {
+            document.getElementById('results-area').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">⚠️</div>
+                    <p>Error: ${escapeHtml(msg)}</p>
+                </div>
+            `;
+        }
+
+        function renderResult(data) {
+            const area = document.getElementById('results-area');
+
+            // Header
+            let html = `
+                <div class="report-header">
+                    <h2 class="report-title">
+                        <span>📊</span> ${escapeHtml(data.original_query || 'Search Results')}
+                    </h2>
+                    <div class="report-meta">
+                        ${data.leads ? data.leads.length : 0} candidates found
+                    </div>
+                </div>
+            `;
+
+            // Briefing
+            if (data.synthesis_report) {
+                let formatted = data.synthesis_report
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/###\s*(.*?)(?:\n|$)/g, '<h4>$1</h4>')
+                    .replace(/##\s*(.*?)(?:\n|$)/g, '<h3>$1</h3>')
+                    .replace(/\n/g, '<br>');
+
+                html += `
+                    <div class="briefing-card">
+                        <div class="briefing-label">
+                            <span>✨</span> AI Analysis
+                        </div>
+                        <div class="briefing-content">${formatted}</div>
+                    </div>
+                `;
+            }
+
+            // Leads Grid
+            if (data.leads && data.leads.length > 0) {
+                html += `
+                    <div class="leads-section">
+                        <div class="leads-header">
+                            <div class="leads-title">Top Candidates</div>
+                            <div class="leads-count">${data.leads.length} matches</div>
+                        </div>
+                        <div class="lead-grid">
+                `;
+
+                data.leads.forEach(lead => {
+                    const score = Math.round(lead.score || 0);
+                    const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+                    const company = lead.company || lead.company_name || 'Unknown Company';
+                    const role = lead.role || lead.title || 'Position';
+                    const location = lead.location || 'Remote';
+                    const url = lead.url || lead.job_url || '#';
+                    const reason = (lead.reasons && lead.reasons[0]) || 'Strong match based on criteria';
+                    const tags = lead.skills || lead.tags || [];
+
+                    html += `
+                        <div class="lead-card">
+                            <div class="lead-header">
+                                <div class="lead-company">${escapeHtml(company)}</div>
+                                <div class="lead-score ${scoreClass}">${score}%</div>
+                            </div>
+                            <div class="lead-role">${escapeHtml(role)} · ${escapeHtml(location)}</div>
+                            ${tags.length > 0 ? `
+                                <div class="lead-tags">
+                                    ${tags.slice(0, 4).map(t => `<span class="lead-tag">${escapeHtml(t)}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                            <div class="lead-reason">"${escapeHtml(reason)}"</div>
+                            <a href="${url}" target="_blank" class="lead-link">View Position →</a>
+                        </div>
+                    `;
+                });
+
+                html += '</div></div>';
+            } else {
+                html += `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No candidates found for this search. Try broadening your criteria.</p>
+                    </div>
+                `;
+            }
+
+            area.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') submitQuery();
+        }
+
+        // Init
+        checkAuth();
+    </script>
+</body>
+
+</html>

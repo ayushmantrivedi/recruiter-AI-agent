@@ -70,7 +70,7 @@ class RecruiterPipeline:
 
             # Step 1: Intelligence Engine (Deterministic)
             logger.info("Step 1: Intelligence Engine", query_id=query_id)
-            intelligence_result = self.intelligence_engine.process(recruiter_query)
+            intelligence_result = await self.intelligence_engine.process(recruiter_query)
             
             # Split into Metadata and Signals for API contract
             intelligence = {
@@ -139,17 +139,18 @@ class RecruiterPipeline:
             
             # Orchestration Summary - Use the canonical ExecutionReport
             execution_report = search_result.get("execution_report")
+            orchestration_summary = execution_report.__dict__ if execution_report else search_result.get("orchestration_summary", {})
+
+            # Step 3: Synthesis Report Generation (New)
+            from ..agents.synthesis_agent import synthesis_agent
+            logger.info("Step 3: Generating synthesis report", query_id=query_id)
             
-            if execution_report:
-                # Update report with pipeline-level context
-                execution_report.query_id = query_id
-                execution_report.leads_saved = len(limited_leads) # Intended save count
-                
-                # Use report as the summary
-                orchestration_summary = execution_report.__dict__
-            else:
-                # Fallback (Should not happen with new Orchestrator)
-                orchestration_summary = search_result.get("orchestration_summary", {})
+            synthesis_report = await synthesis_agent.generate_briefing(
+                query_id=query_id,
+                query_text=recruiter_query,
+                leads=limited_leads,
+                orchestration_summary=orchestration_summary
+            )
 
             # Calculate final metrics
             processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -163,15 +164,11 @@ class RecruiterPipeline:
                 "intelligence": intelligence,
                 "signals": signals,
                 "constraints": constraints,
-                
-                # Canonical Contracts
                 "orchestration_summary": orchestration_summary,
-                "total_leads_found": execution_report.raw_leads_found if execution_report else len(leads),
+                "total_leads_found": total_leads_before_limit,
                 "leads": limited_leads,
-                
-                # Internal Pass-through for DB persistence
+                "synthesis_report": synthesis_report,
                 "execution_report_dto": execution_report,
-                
                 "status": "completed",
                 "completed_at": datetime.utcnow().isoformat()
             }
@@ -187,10 +184,15 @@ class RecruiterPipeline:
             return result
 
         except Exception as e:
+            # DEBUG: Write full error to file
+            import traceback
+            with open("logs/debug_error.log", "a") as f:
+                f.write(f"\n--- PIPELINE ERROR Query {query_id} ---\n")
+                f.write(traceback.format_exc())
+
             logger.error("Pipeline processing failed",
                         error=str(e),
-                        query_id=query_id,
-                        query=recruiter_query)
+                        query_id=query_id)
 
             # Update database status to failed
             try:
@@ -253,6 +255,7 @@ class RecruiterPipeline:
             query.processing_status = "completed"
             query.total_cost = 0.0
             query.execution_time = result["processing_time"]
+            query.synthesis_report = result.get("synthesis_report")
             query.completed_at = datetime.utcnow()
 
             # Save Execution Report
@@ -436,6 +439,7 @@ class RecruiterPipeline:
                     "execution_time": query.execution_time,
                     "orchestration_summary": orchestration_summary,
                     "total_leads_found": total_leads_found,  # CRITICAL: Was missing!
+                    "synthesis_report": query.synthesis_report,
                     "leads": [
                         {
                             "company": lead.company_name,
@@ -449,8 +453,9 @@ class RecruiterPipeline:
                     "completed_at": query.completed_at.isoformat() if query.completed_at else None
                 }
 
-                # Cache for 1 hour
-                await cache.set(f"query_result:{query_id}", result, ttl=3600)
+                # Only cache final states (completed/failed)
+                if result["status"] in ["completed", "failed"]:
+                    await cache.set(f"query_result:{query_id}", result, ttl=3600)
 
                 return result
 
