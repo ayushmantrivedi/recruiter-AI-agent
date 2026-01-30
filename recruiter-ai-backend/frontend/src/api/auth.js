@@ -6,6 +6,11 @@ export const authAPI = {
     return response.data
   },
 
+  loginByIdentity: async (identity) => {
+    const response = await api.post('/auth/identity', { identity })
+    return response.data
+  },
+
   register: async (email, password, fullName, company) => {
     const response = await api.post('/auth/register', {
       email,

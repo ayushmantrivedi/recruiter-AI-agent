@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, List
+import re
 
 @dataclass
 class NormalizedLead:
@@ -36,9 +37,25 @@ class LeadNormalizer:
         # Priority: company -> company_name -> Unknown
         company = raw_lead.get("company") or raw_lead.get("company_name") or "Unknown Company"
         role = raw_lead.get("title") or raw_lead.get("role") or "Unknown Role"
-        location = raw_lead.get("location") # Allow None here, let downstream handle or default
-        if not location:
-             location = "Remote" # Default to Remote if source doesn't specify
+        location = raw_lead.get("location") or "Remote"
+
+        # COMPANY HARDENING: Strip legal suffixes and noise
+        company = re.sub(r'\s+(GmbH|AG|Ltd|Corp|Inc|LLC|Pvt|Ltd\.|S\.A\.|KGaA|e.V.)\b', '', company, flags=re.IGNORECASE).strip()
+        
+        # ROLE HARDENING: Strip common noise that breaks deduplication
+        # Remove gender markers like (m/f/d), (w/m/d), (all genders)
+        role = re.sub(r'\s*\(?[mwfdx]\s*/\s*[mwfdx]\s*/\s*[mwfdx]\)?', '', role, flags=re.IGNORECASE)
+        role = re.sub(r'\s*\(\s*all\s*genders\s*\)', '', role, flags=re.IGNORECASE)
+        
+        # Aggressive Title Cleaning: "Senior Python Developer" -> "Python Developer"
+        # We preserve the original title in the object but use the cleaned one for internal logic if needed
+        # Actually, for "Best-in-Class", we should probably keep the original title for display but use a 'clean_title' for dedup.
+        # But for now, let's keep it simple and clean the main field as requested.
+        role = re.sub(r'\b(Senior|Junior|Lead|Principal|Staff|Senior\s+Level|Junior\s+Level)\b', '', role, flags=re.IGNORECASE).strip()
+        
+        # LOCATION HARDENING: Normalize common patterns
+        if "," in location:
+            location = location.split(",")[0].strip()
              
         url = raw_lead.get("url") or raw_lead.get("job_url") or "#"
         

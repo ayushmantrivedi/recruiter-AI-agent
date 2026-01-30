@@ -4,10 +4,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import jwt
 import bcrypt
-from pydantic import BaseModel, EmailStr
+import structlog
+from pydantic import BaseModel
 
 from ..database import get_db, Recruiter
 from ..config import settings
+from ..utils.logger import get_logger
+
+logger = get_logger("auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer()
@@ -18,11 +22,14 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+    email: str   # Changed from EmailStr to support generic IDs
+    password: str = None
+
+class IdentityRequest(BaseModel):
+    identity: str   # Changed from email to identity for clarity
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: str
     company: str = None
@@ -66,8 +73,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
         return user
     except jwt.ExpiredSignatureError:
+        logger.warning("Token expired")
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.JWTError:
+    except jwt.PyJWTError as e:
+        logger.warning("JWT validation failed", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid token")
 
 @router.post("/register", response_model=TokenResponse)
@@ -105,18 +114,25 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         }
     )
 
-@router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user and return access token."""
-    # Find user
-    user = db.query(Recruiter).filter(Recruiter.email == request.email).first()
+@router.post("/identity", response_model=TokenResponse)
+async def login_by_identity(request: IdentityRequest, db: Session = Depends(get_db)):
+    """Log in or register automatically using only an identity string."""
+    # Find or create user
+    user = db.query(Recruiter).filter(Recruiter.email == request.identity).first()
+    
     if not user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-
-    # Verify password
-    if not verify_password(request.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-
+        # Create a new simplified user identity
+        user = Recruiter(
+            email=request.identity,
+            hashed_password="ID_ONLY_ACCOUNT", # Placeholder
+            full_name=request.identity,
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info("Created new password-less identity", identity=request.identity, user_id=user.id)
+    
     # Create access token
     access_token = create_access_token(data={"sub": str(user.id)})
 

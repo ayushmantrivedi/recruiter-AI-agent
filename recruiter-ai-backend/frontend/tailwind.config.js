@@ -7,16 +7,29 @@ export default {
   theme: {
     extend: {
       colors: {
+        bg: {
+          main: '#06080d',
+          card: 'rgba(22, 27, 34, 0.6)',
+          sidebar: 'rgba(13, 17, 23, 0.7)',
+        },
         primary: {
           50: '#eff6ff',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
         },
-        success: '#10b981',
-        warning: '#f59e0b',
-        danger: '#ef4444',
+        accent: {
+          indigo: '#6366f1',
+          emerald: '#10b981',
+        }
       },
+      fontFamily: {
+        heading: ['Outfit', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+      },
+      backdropBlur: {
+        'glass': '12px',
+      }
     },
   },
   plugins: [],

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { UserPlus, Mail, Lock, User, Building, ArrowRight, ShieldCheck } from 'lucide-react'
 
 function Register() {
   const [formData, setFormData] = useState({
@@ -33,107 +34,123 @@ function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Join Recruiter AI to find better candidates
-          </p>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[#0a0f1d] relative overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-accent-indigo/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-accent-emerald/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="w-full max-w-xl relative">
+        <div className="flex flex-col items-center mb-10">
+          <div className="w-16 h-16 bg-accent-indigo rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-500/40 mb-6 group hover:rotate-6 transition-transform">
+            <ShieldCheck className="h-10 w-10" />
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
+            Agent<span className="text-accent-indigo">Registration</span>
+          </h1>
+          <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2 italic">Standard Recruitment Protocol Access</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
-                Full Name
-              </label>
-              <input
-                id="fullName"
-                name="fullName"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="John Doe"
-                value={formData.fullName}
-                onChange={handleChange}
-              />
-            </div>
 
-            <div>
-              <label htmlFor="company" className="block text-sm font-medium text-gray-700">
-                Company
-              </label>
-              <input
-                id="company"
-                name="company"
-                type="text"
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="Tech Corp"
-                value={formData.company}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="john@company.com"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={handleChange}
-              />
-            </div>
+        <div className="glass-card p-10 backdrop-blur-3xl border-white/10 shadow-2xl">
+          <div className="mb-10 text-center">
+            <h2 className="text-xl font-bold text-white mb-2">Create New Instance</h2>
+            <p className="text-slate-500 text-sm font-medium italic">Join the next generation of AI-powered scouting agents.</p>
           </div>
 
-          {error && (
-            <div className="text-red-600 text-sm text-center">
-              {error}
-            </div>
-          )}
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                <div className="relative group">
+                  <User className="h-5 w-5 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-indigo transition-colors" />
+                  <input
+                    name="fullName"
+                    type="text"
+                    required
+                    className="input-field pl-12"
+                    placeholder="John Doe"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
 
-          <div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Affiliation</label>
+                <div className="relative group">
+                  <Building className="h-5 w-5 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-indigo transition-colors" />
+                  <input
+                    name="company"
+                    type="text"
+                    className="input-field pl-12"
+                    placeholder="Organization Name"
+                    value={formData.company}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Neural ID (Email)</label>
+              <div className="relative group">
+                <Mail className="h-5 w-5 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-indigo transition-colors" />
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  className="input-field pl-12"
+                  placeholder="agent@recruiter-ai.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Access Cipher (Password)</label>
+              <div className="relative group">
+                <Lock className="h-5 w-5 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-indigo transition-colors" />
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  className="input-field pl-12"
+                  placeholder="••••••••••••"
+                  value={formData.password}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm font-bold text-center">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full py-4 text-lg group/btn mt-4"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              <div className="flex items-center justify-center gap-3">
+                <span>{loading ? 'Initializing Agent...' : 'Finalize Registration'}</span>
+                {!loading && <UserPlus className="h-5 w-5 group-hover:scale-110 transition-transform" />}
+              </div>
             </button>
-          </div>
 
-          <div className="text-center">
-            <Link
-              to="/login"
-              className="text-primary-600 hover:text-primary-500 text-sm"
-            >
-              Already have an account? Sign in
-            </Link>
-          </div>
-        </form>
+            <div className="text-center mt-8">
+              <Link
+                to="/login"
+                className="text-slate-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-[0.2em] border-b border-white/5 hover:border-white py-1"
+              >
+                Existing Agent? Return to Base
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

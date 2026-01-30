@@ -45,6 +45,32 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  loginByIdentity: async (identity) => {
+    try {
+      set({ loading: true, error: null })
+      const response = await authAPI.loginByIdentity(identity)
+
+      const { access_token, user } = response
+      localStorage.setItem('token', access_token)
+      localStorage.setItem('recruiter_id', user.id) // Maintain compatibility with existing App.jsx check
+
+      set({
+        user,
+        token: access_token,
+        loading: false,
+        error: null
+      })
+
+      return { success: true }
+    } catch (error) {
+      set({
+        loading: false,
+        error: error.response?.data?.message || 'Identity verification failed'
+      })
+      return { success: false, error: error.response?.data?.message }
+    }
+  },
+
   register: async (email, password, fullName, company) => {
     try {
       set({ loading: true, error: null })

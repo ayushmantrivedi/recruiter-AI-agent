@@ -312,6 +312,8 @@ class RecruiterPipeline:
                         company_name=clean_lead["company_name"],
                         score=clean_lead["score"],
                         confidence=clean_lead["confidence"],
+                        role=clean_lead.get("role"),         # Fix: Persist Role for deduplication
+                        location=clean_lead.get("location"), # Fix: Persist Location for deduplication
                         reasons=clean_lead.get("reasons", []),
                         # NOTE: evidence_count removed - not in DB schema
                         evidence_objects=clean_lead.get("evidence_objects", []),
@@ -428,6 +430,7 @@ class RecruiterPipeline:
 
                 result = {
                     "query_id": query_id,
+                    "recruiter_id": query.recruiter_id,
                     "status": query.processing_status,
                     "original_query": query.query_text,
                     "concept_vector": query.concept_vector,

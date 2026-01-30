@@ -3,29 +3,47 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    font-family: 'Inter', system-ui, sans-serif;
+
+  html,
+  body {
+    @apply bg-bg-main text-slate-100 font-body;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-800 rounded-full hover:bg-slate-700 transition-colors;
   }
 }
 
 @layer components {
-  .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+  .glass-card {
+    @apply bg-bg-card backdrop-blur-glass border border-white/10 rounded-2xl shadow-2xl;
   }
 
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-2 focus:ring-primary-500;
+    @apply bg-accent-indigo text-white px-6 py-3 rounded-xl font-semibold transform hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/20 active:scale-95 transition-all duration-200;
   }
 
-  .btn-secondary {
-    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-2 focus:ring-gray-500;
-  }
-
-  .card {
-    @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
-  }
-
-  .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  .input-field {
+    @apply bg-black/30 border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-accent-indigo focus:border-transparent transition-all;
   }
 }

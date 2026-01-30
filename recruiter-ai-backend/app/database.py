@@ -13,7 +13,8 @@ engine = create_engine(
     settings.database.url,
     pool_pre_ping=True,
     pool_recycle=300,
-    echo=settings.debug
+    echo=settings.debug,
+    connect_args={"check_same_thread": False, "timeout": 30} if settings.database.url.startswith("sqlite") else {}
 )
 
 # Create session factory

@@ -1,7 +1,7 @@
 import asyncio
 from typing import List, Dict, Any
 from ..utils.logger import get_logger
-from .data_sources import MockJobBoard, MockStartupDB, MockCompanyAPI
+from .data_sources import MockJobBoard, MockCompanyAPI
 from .lead_normalizer import LeadNormalizer
 from .lead_scorer import LeadScorer
 from .lead_ranker import LeadRanker
@@ -52,12 +52,17 @@ class SearchOrchestrator:
             from .data_sources import MockJobBoard
             self.sources.append(MockJobBoard())
             
-        # 2. Mock Data (Fake/Static)
+        # 2. Real-Time Web Scraper (Combined with Primary Sources)
+        if settings.agent.enable_web_scraper:
+            logger.info("Real-Time Web Scraper ENABLED (DuckDuckGo/LinkedIn/Indeed)")
+            from .data_sources import RealTimeWebScraper
+            self.sources.append(RealTimeWebScraper())
+
+        # 3. Mock Data (Fake/Static) - Only if explicitly enabled
         if settings.agent.enable_mock_sources:
             logger.info("Mock Data Sources ENABLED")
-            from .data_sources import MockStartupDB, MockCompanyAPI
+            from .data_sources import MockCompanyAPI
             self.sources.extend([
-                MockStartupDB(),
                 MockCompanyAPI()
             ])
             

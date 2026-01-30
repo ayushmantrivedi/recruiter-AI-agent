@@ -8,6 +8,7 @@ from ..services.pipeline import recruiter_pipeline
 from ..database import get_db, SessionLocal, Query
 from ..config import settings
 from ..utils.logger import get_logger
+from .auth import get_current_user, Recruiter
 
 logger = get_logger("recruiter_routes")
 
@@ -149,15 +150,20 @@ class QueryResponse(BaseModel):
 # ... (LeadResponse, etc remain same)
 
 @router.get("/query/{query_id}", response_model=QueryResponse)
-async def get_query_results(query_id: str):
+async def get_query_results(query_id: str, current_user: Recruiter = Depends(get_current_user)):
     """Get the results of a processed query.
 
     Returns the complete results once processing is finished,
     or current status if still processing.
     """
     try:
-        logger.info("Getting query status", query_id=query_id)
+        logger.info("Getting query status", query_id=query_id, identity=current_user.email)
         result = await recruiter_pipeline.get_query_status(query_id)
+        
+        if result and result.get('recruiter_id') != current_user.email:
+            logger.warning("Unauthorized query access attempt", query_id=query_id, identity=current_user.email)
+            raise HTTPException(status_code=403, detail="Unauthorized access to this query")
+
         logger.info("Pipeline result", query_id=query_id, result=result)
 
         if not result:
@@ -208,6 +214,7 @@ class RecruiterStatsResponse(BaseModel):
 async def process_recruiter_query(
     request: Request,
     background_tasks: BackgroundTasks,
+    current_user: Recruiter = Depends(get_current_user),
     db=Depends(get_db)
 ):
     """Process a recruiter search query through the AI agent pipeline.
@@ -227,12 +234,15 @@ async def process_recruiter_query(
 
         # Generate a unique query ID
         query_id = str(uuid.uuid4())
+        
+        # Override recruiter_id from authenticated user
+        user_identity = current_user.email
 
         # For very short queries, process synchronously
         if len(normalized_query.query.split()) <= 3:
             result = await recruiter_pipeline.process_recruiter_query(
                 normalized_query.query,
-                normalized_query.recruiter_id,
+                user_identity,
                 query_id=query_id  # Pass the query_id
             )
             return QueryResponse(**result)
@@ -242,7 +252,7 @@ async def process_recruiter_query(
             # Insert new query record
             query_record = Query(
                 id=query_id,
-                recruiter_id=normalized_query.recruiter_id,
+                recruiter_id=user_identity,
                 query_text=normalized_query.query,
                 processing_status="processing",
                 created_at=datetime.utcnow()
@@ -252,7 +262,7 @@ async def process_recruiter_query(
 
             logger.info("Job created and queued for processing",
                        query_id=query_id,
-                       recruiter_id=normalized_query.recruiter_id,
+                       recruiter_id=user_identity,
                        query=normalized_query.query)
 
         except Exception as db_error:
@@ -268,7 +278,7 @@ async def process_recruiter_query(
             process_query_background,
             query_id,
             normalized_query.query,
-            normalized_query.recruiter_id
+            user_identity
         )
 
         # Return processing status with real query ID
@@ -430,28 +440,27 @@ def _mark_job_failed(query_id: str, error_message: str):
 
 
 @router.get("/stats/{recruiter_id}", response_model=RecruiterStatsResponse)
-async def get_recruiter_stats(recruiter_id: str):
+async def get_recruiter_stats(recruiter_id: str, current_user: Recruiter = Depends(get_current_user)):
     """Get statistics for a specific recruiter.
-
-    Returns aggregated statistics about queries, leads, costs, and performance.
+    This endpoint provides summary metrics including total runs,
+    leads generated, and cost analysis for the authenticated identity.
     """
     try:
-        stats = await recruiter_pipeline.get_recruiter_stats(recruiter_id)
-        return RecruiterStatsResponse(**stats)
-
+        # Use current_user identity string instead of integer ID
+        stats = await recruiter_pipeline.get_recruiter_stats(current_user.email)
+        return stats
     except Exception as e:
-        logger.error("Recruiter stats retrieval failed", error=str(e), recruiter_id=recruiter_id)
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve recruiter stats: {str(e)}")
+        logger.error("Failed to retrieve recruiter stats", error=str(e), identity=current_user.email)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/leads")
-async def get_leads(recruiter_id: str = None, limit: int = 50, offset: int = 0, db=Depends(get_db)):
-    """Get leads for a recruiter."""
+async def get_leads(limit: int = 50, offset: int = 0, current_user: Recruiter = Depends(get_current_user), db=Depends(get_db)):
+    """Get leads for the authenticated recruiter."""
+    user_identity = current_user.email
     try:
         from ..database import Lead
-        query = db.query(Lead)
-        if recruiter_id:
-            query = query.join(Query).filter(Query.recruiter_id == recruiter_id)
+        query = db.query(Lead).join(Query).filter(Query.recruiter_id == user_identity)
 
         leads = query.offset(offset).limit(limit).all()
 
@@ -486,6 +495,11 @@ async def get_lead_by_id(lead_id: int, db=Depends(get_db)):
 
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
+            
+        # Check permissions
+        parent_query = db.query(Query).filter(Query.id == lead.query_id).first()
+        if not parent_query or parent_query.recruiter_id != str(current_user.id):
+             raise HTTPException(status_code=403, detail="Unauthorized access to this lead")
 
         return {
             "id": lead.id,
@@ -509,12 +523,11 @@ async def get_lead_by_id(lead_id: int, db=Depends(get_db)):
 
 
 @router.get("/queries")
-async def get_queries(recruiter_id: str = None, limit: int = 20, offset: int = 0, db=Depends(get_db)):
-    """Get query history."""
+async def get_queries(limit: int = 20, offset: int = 0, current_user: Recruiter = Depends(get_current_user), db=Depends(get_db)):
+    """Get query history for the authenticated recruiter."""
+    user_identity = current_user.email
     try:
-        query = db.query(Query)
-        if recruiter_id:
-            query = query.filter(Query.recruiter_id == recruiter_id)
+        query = db.query(Query).filter(Query.recruiter_id == user_identity)
 
         queries = query.offset(offset).limit(limit).all()
 
@@ -541,31 +554,45 @@ async def get_queries(recruiter_id: str = None, limit: int = 20, offset: int = 0
 
 
 @router.get("/metrics/dashboard")
-async def get_dashboard_metrics(recruiter_id: str = None, db=Depends(get_db)):
-    """Get dashboard metrics."""
+async def get_dashboard_metrics(current_user: Recruiter = Depends(get_current_user), db=Depends(get_db)):
+    """Get dashboard metrics for the authenticated recruiter."""
+    user_identity = current_user.email
     try:
         from ..database import Lead, Query
         from sqlalchemy import func
 
+        # Filter by authenticated user's queries
+        user_queries = db.query(Query.id).filter(Query.recruiter_id == user_identity)
+        user_query_ids = [q[0] for q in user_queries.all()]
+
         # Today's leads
         today = datetime.utcnow().date()
         today_leads = db.query(func.count(Lead.id)).filter(
+            Lead.query_id.in_(user_query_ids),
             func.date(Lead.created_at) == today
         ).scalar() or 0
 
         # Total leads
-        total_leads = db.query(func.count(Lead.id)).scalar() or 0
+        total_leads = db.query(func.count(Lead.id)).filter(
+            Lead.query_id.in_(user_query_ids)
+        ).scalar() or 0
 
         # Average score
-        avg_score = db.query(func.avg(Lead.score)).scalar() or 0.0
+        avg_score = db.query(func.avg(Lead.score)).filter(
+            Lead.query_id.in_(user_query_ids)
+        ).scalar() or 0.0
 
         # Recent queries
-        recent_queries = db.query(Query).order_by(Query.created_at.desc()).limit(5).all()
+        recent_queries = db.query(Query).filter(
+            Query.recruiter_id == user_identity
+        ).order_by(Query.created_at.desc()).limit(5).all()
 
         # Top companies by leads
         top_companies = db.query(
             Lead.company_name,
             func.count(Lead.id).label('count')
+        ).join(Query).filter(
+            Query.recruiter_id == user_identity
         ).group_by(Lead.company_name).order_by(func.count(Lead.id).desc()).limit(5).all()
 
         return {
@@ -593,8 +620,9 @@ async def get_dashboard_metrics(recruiter_id: str = None, db=Depends(get_db)):
 
 
 @router.get("/metrics/usage")
-async def get_usage_metrics(period: str = "30d", recruiter_id: str = None, db=Depends(get_db)):
-    """Get usage metrics."""
+async def get_usage_metrics(period: str = "30d", current_user: Recruiter = Depends(get_current_user), db=Depends(get_db)):
+    """Get usage metrics for the authenticated recruiter."""
+    user_identity = current_user.email
     try:
         from ..database import Query, Lead
         from sqlalchemy import func
@@ -607,14 +635,17 @@ async def get_usage_metrics(period: str = "30d", recruiter_id: str = None, db=De
 
         # Usage stats
         total_queries = db.query(func.count(Query.id)).filter(
+            Query.recruiter_id == user_identity,
             Query.created_at >= cutoff_date
         ).scalar() or 0
 
         total_cost = db.query(func.sum(Query.total_cost)).filter(
+            Query.recruiter_id == user_identity,
             Query.created_at >= cutoff_date
         ).scalar() or 0.0
 
         successful_queries = db.query(func.count(Query.id)).filter(
+            Query.recruiter_id == user_identity,
             Query.created_at >= cutoff_date,
             Query.processing_status == "completed"
         ).scalar() or 0
@@ -634,28 +665,38 @@ async def get_usage_metrics(period: str = "30d", recruiter_id: str = None, db=De
 
 
 @router.get("/metrics/performance")
-async def get_performance_metrics(db=Depends(get_db)):
-    """Get performance metrics."""
+async def get_performance_metrics(current_user: Recruiter = Depends(get_current_user), db=Depends(get_db)):
+    """Get performance metrics for the authenticated recruiter."""
+    user_identity = current_user.email
     try:
         from ..database import Query, Lead
         from sqlalchemy import func
 
         # Average execution time
-        avg_execution_time = db.query(func.avg(Query.execution_time)).scalar() or 0.0
+        avg_execution_time = db.query(func.avg(Query.execution_time)).filter(
+            Query.recruiter_id == user_identity
+        ).scalar() or 0.0
 
         # Average lead score
-        avg_lead_score = db.query(func.avg(Lead.score)).scalar() or 0.0
+        avg_lead_score = db.query(func.avg(Lead.score)).join(Query).filter(
+            Query.recruiter_id == user_identity
+        ).scalar() or 0.0
 
         # Query success rate
-        total_queries = db.query(func.count(Query.id)).scalar() or 0
+        total_queries = db.query(func.count(Query.id)).filter(
+            Query.recruiter_id == user_identity
+        ).scalar() or 0
         successful_queries = db.query(func.count(Query.id)).filter(
+            Query.recruiter_id == user_identity,
             Query.processing_status == "completed"
         ).scalar() or 0
 
         success_rate = (successful_queries / total_queries * 100) if total_queries > 0 else 0
 
         # Leads per query
-        total_leads = db.query(func.count(Lead.id)).scalar() or 0
+        total_leads = db.query(func.count(Lead.id)).join(Query).filter(
+            Query.recruiter_id == user_identity
+        ).scalar() or 0
         avg_leads_per_query = (total_leads / total_queries) if total_queries > 0 else 0
 
         return {

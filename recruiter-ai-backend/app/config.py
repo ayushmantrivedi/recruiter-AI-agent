@@ -65,6 +65,7 @@ class AgentSettings(BaseSettings):
     
     # Provider Flags - Controlled by SearchMode
     enable_mock_sources: bool = Field(default=True, env="ENABLE_MOCK_SOURCES")
+    enable_web_scraper: bool = Field(default=True, env="ENABLE_WEB_SCRAPER") # NEW: Real-Time Scraper
     enable_arbeitnow: bool = Field(default=True, env="ENABLE_ARBEITNOW") 
     enable_github_jobs: bool = Field(default=False, env="ENABLE_GITHUB_JOBS") # DEPRECATED
     enable_paid_apis: bool = Field(default=False, env="ENABLE_PAID_APIS")
@@ -104,13 +105,15 @@ class AgentSettings(BaseSettings):
         """
         if self.search_mode == SearchMode.DEV:
             self.enable_mock_sources = True
+            self.enable_web_scraper = True # Always enable scraper in DEV
             # In DEV, we can toggle external APIs manually if needed, but default safe
             if self.enable_paid_apis:
                  raise ValueError("Cannot enable PAID APIs in DEV mode. Switch to STAGING or PRODUCTION.")
             
         elif self.search_mode == SearchMode.STAGING:
-            # Staging: Public APIs allowed, Mocks disabled
+            # Staging: Public APIs allowed, Mocks disabled, Scraper ENABLED
             self.enable_mock_sources = False
+            self.enable_web_scraper = True
             self.enable_paid_apis = False # Safe default
             
         elif self.search_mode == SearchMode.PRODUCTION:

@@ -24,6 +24,8 @@ class LeadContract:
         "company_domain",
         "company_size",
         "industry",
+        "role",      # Added for identity/deduplication
+        "location",  # Added for identity/deduplication
         
         # Lead scoring
         "score",

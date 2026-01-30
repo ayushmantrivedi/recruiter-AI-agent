@@ -1,11 +1,17 @@
 import { create } from 'zustand'
 import { leadsAPI } from '../api/leads'
 import { agentAPI } from '../api/agent'
+import { metricsAPI } from '../api/metrics'
 
 const useLeadStore = create((set, get) => ({
   leads: [],
   currentLead: null,
   agentRuns: [],
+  metrics: {
+    dashboard: null,
+    performance: null,
+    usage: null
+  },
   loading: false,
   error: null,
 
@@ -138,6 +144,40 @@ const useLeadStore = create((set, get) => ({
       link.remove()
     } catch (error) {
       throw error
+    }
+  },
+
+  // Fetch metrics data
+  fetchDashboardMetrics: async () => {
+    try {
+      set({ loading: true })
+      const data = await metricsAPI.getDashboardMetrics()
+      set((state) => ({
+        metrics: { ...state.metrics, dashboard: data },
+        loading: false
+      }))
+    } catch (error) {
+      set({ loading: false, error: 'Failed to fetch dashboard metrics' })
+    }
+  },
+
+  fetchHistoricalQueries: async () => {
+    try {
+      const response = await agentAPI.getQueryHistory()
+      set({ agentRuns: response.queries || [] })
+    } catch (error) {
+      console.error('Failed to fetch query history:', error)
+    }
+  },
+
+  fetchPerformanceMetrics: async () => {
+    try {
+      const data = await metricsAPI.getPerformanceMetrics()
+      set((state) => ({
+        metrics: { ...state.metrics, performance: data },
+      }))
+    } catch (error) {
+      console.error('Failed to fetch performance metrics:', error)
     }
   },
 

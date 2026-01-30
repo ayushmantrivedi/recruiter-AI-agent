@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLeadStore } from '../store/leadStore'
-import { Play, Loader, CheckCircle, AlertCircle } from 'lucide-react'
+import { Play, Loader, CheckCircle, AlertCircle, Sparkles, ChevronRight } from 'lucide-react'
 
 function RunAgent() {
   const [query, setQuery] = useState('')
@@ -23,9 +23,10 @@ function RunAgent() {
       const response = await runAgentQuery(query.trim())
       setResult(response)
 
-      // If it's not completed immediately, poll for status
       if (response.status !== 'completed') {
         pollQueryStatus(response.query_id)
+      } else {
+        setIsRunning(false)
       }
     } catch (err) {
       setError(err.message || 'Failed to run agent query')
@@ -49,9 +50,8 @@ function RunAgent() {
         setIsRunning(false)
         setError('Failed to check query status')
       }
-    }, 2000) // Poll every 2 seconds
+    }, 2000)
 
-    // Stop polling after 2 minutes
     setTimeout(() => {
       clearInterval(pollInterval)
       setIsRunning(false)
@@ -63,30 +63,34 @@ function RunAgent() {
     "Remote frontend developers with React experience",
     "Data scientists for machine learning roles",
     "DevOps engineers for cloud infrastructure",
-    "Find CTO candidates for fintech startups"
   ]
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Run AI Agent</h1>
-        <p className="mt-2 text-gray-600">
-          Enter a natural language query to discover hiring leads using our AI agents.
+    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-32">
+      <header className="mb-10 text-center md:text-left">
+        <h1 className="text-4xl font-bold text-white tracking-tight flex items-center justify-center md:justify-start gap-4">
+          <div className="bg-accent-indigo p-2 rounded-xl shadow-lg shadow-indigo-500/20">
+            <Sparkles className="h-8 w-8 text-white" />
+          </div>
+          Discovery Agent
+        </h1>
+        <p className="mt-4 text-slate-400 text-lg max-w-2xl">
+          Deploy AI agents to scan the global market and identify high-value candidates through natural language intelligence.
         </p>
-      </div>
+      </header>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-2">
-              Your Query
+      <section className="glass-card p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label htmlFor="query" className="text-sm font-semibold text-slate-400 uppercase tracking-widest">
+              Strategic Intent
             </label>
             <textarea
               id="query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., Find senior backend engineers in Bangalore with 5+ years experience"
-              className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              placeholder="e.g., Identify senior React developers in London with deep FinTech experience..."
+              className="w-full h-32 input-field resize-none text-lg"
               required
             />
           </div>
@@ -94,117 +98,106 @@ function RunAgent() {
           <button
             type="submit"
             disabled={isRunning || !query.trim()}
-            className="flex items-center space-x-2 bg-primary-600 text-white px-6 py-3 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary w-full md:w-auto flex items-center justify-center space-x-3"
           >
             {isRunning ? (
               <>
                 <Loader className="h-5 w-5 animate-spin" />
-                <span>Running Agent...</span>
+                <span>Scanning Market...</span>
               </>
             ) : (
               <>
-                <Play className="h-5 w-5" />
-                <span>Run Agent</span>
+                <Play className="h-5 w-5 fill-current" />
+                <span>Execute Mission</span>
               </>
             )}
           </button>
         </form>
-      </div>
 
-      {/* Example Queries */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Example Queries</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {exampleQueries.map((example, index) => (
-            <button
-              key={index}
-              onClick={() => setQuery(example)}
-              className="text-left p-3 border border-gray-200 rounded-md hover:bg-gray-50 hover:border-primary-300 transition-colors"
-            >
-              <p className="text-sm text-gray-700">{example}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Results */}
-      {result && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            {result.status === 'completed' ? (
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            ) : result.status === 'failed' ? (
-              <AlertCircle className="h-6 w-6 text-red-600" />
-            ) : (
-              <Loader className="h-6 w-6 text-blue-600 animate-spin" />
-            )}
-            <h2 className="text-lg font-medium text-gray-900">
-              Query Results
-            </h2>
+        <div className="mt-8 pt-8 border-t border-white/5">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Tactical Examples</p>
+          <div className="flex flex-wrap gap-2">
+            {exampleQueries.map((example, index) => (
+              <button
+                key={index}
+                onClick={() => setQuery(example)}
+                className="px-4 py-2 bg-white/5 border border-white/5 rounded-full text-sm text-slate-400 hover:bg-white/10 hover:text-white transition-all"
+              >
+                {example}
+              </button>
+            ))}
           </div>
+        </div>
+      </section>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-gray-500">Status:</span>
-                <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                  result.status === 'completed'
-                    ? 'bg-green-100 text-green-800'
-                    : result.status === 'failed'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-blue-100 text-blue-800'
+      {/* Results Container - Scrollable only if needed */}
+      {result && (
+        <div className="glass-card overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+            <div className="flex items-center space-x-4">
+              <div className={`p-2 rounded-lg ${result.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                  result.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20 text-indigo-400'
                 }`}>
-                  {result.status}
-                </span>
+                {result.status === 'completed' ? <CheckCircle className="h-6 w-6" /> :
+                  result.status === 'failed' ? <AlertCircle className="h-6 w-6" /> : <Loader className="h-6 w-6 animate-spin" />}
               </div>
               <div>
-                <span className="font-medium text-gray-500">Query ID:</span>
-                <span className="ml-2 text-gray-900">{result.query_id}</span>
-              </div>
-              <div>
-                <span className="font-medium text-gray-500">Leads Found:</span>
-                <span className="ml-2 text-gray-900">
-                  {result.leads ? result.leads.length : 0}
-                </span>
+                <h2 className="text-xl font-bold text-white">Analysis Findings</h2>
+                <p className="text-sm text-slate-500 uppercase tracking-tighter">Query ID: {result.query_id.slice(0, 8)}...</p>
               </div>
             </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-white">{result.leads ? result.leads.length : 0}</p>
+              <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">Leads Detected</p>
+            </div>
+          </div>
+
+          <div className="p-8 space-y-8 max-h-[600px] overflow-y-auto">
+            {/* Synthesis Report Integration */}
+            {result.synthesis_report && (
+              <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 relative">
+                <div className="absolute top-4 right-4 text-indigo-400 opacity-20"><Sparkles className="h-12 w-12" /></div>
+                <h3 className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-4">Strategic Summary</h3>
+                <div className="text-slate-300 leading-relaxed text-lg prose prose-invert max-w-none">
+                  {result.synthesis_report.split('\n').map((line, i) => (
+                    <p key={i} className="mb-2">{line.startsWith('#') ? <strong>{line.replace(/#/g, '')}</strong> : line}</p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {result.status === 'completed' && result.leads && result.leads.length > 0 && (
-              <div className="border-t pt-4">
-                <h3 className="text-md font-medium text-gray-900 mb-3">
-                  Top Leads Found
+              <div className="space-y-4">
+                <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                  Verified Candidates
+                  <span className="text-slate-500 text-sm font-normal">({result.leads.length})</span>
                 </h3>
-                <div className="space-y-3">
-                  {result.leads.slice(0, 3).map((lead, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                      <div>
-                        <p className="font-medium text-gray-900">{lead.company}</p>
-                        <p className="text-sm text-gray-600">
-                          Score: {lead.score}/100 • {lead.reasons?.[0] || 'No reason provided'}
+                <div className="grid grid-cols-1 gap-4">
+                  {result.leads.map((lead, index) => (
+                    <div key={index} className="flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/[0.08] hover:border-indigo-500/30 transition-all group">
+                      <div className="space-y-1">
+                        <p className="font-bold text-white text-lg">{lead.company}</p>
+                        <p className="text-slate-400 flex items-center gap-3">
+                          <span className="bg-indigo-500/20 text-indigo-400 text-xs font-bold px-2 py-0.5 rounded">FIT: {lead.score}%</span>
+                          <span className="truncate max-w-sm italic opacity-60">"{lead.reasons?.[0]}"</span>
                         </p>
                       </div>
                       <button
                         onClick={() => navigate(`/leads/${lead.id || lead.company}`)}
-                        className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        className="p-3 bg-white/5 rounded-xl group-hover:bg-indigo-500 group-hover:text-white transition-all"
                       >
-                        View Details →
+                        <ChevronRight className="h-5 w-5" />
                       </button>
                     </div>
                   ))}
                 </div>
-                {result.leads.length > 3 && (
-                  <p className="text-sm text-gray-600 mt-3">
-                    And {result.leads.length - 3} more leads found...
-                  </p>
-                )}
               </div>
             )}
 
             {result.status === 'failed' && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-red-800">
-                  Query failed: {result.error || 'Unknown error occurred'}
-                </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-red-400">
+                <p className="font-bold mb-2">Operation Aborted</p>
+                <p className="opacity-80">{result.error || 'A critical error occurred during the market scan.'}</p>
               </div>
             )}
           </div>
@@ -212,11 +205,9 @@ function RunAgent() {
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-            <p className="text-red-800">{error}</p>
-          </div>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 flex items-center gap-4 text-red-400 animate-in shake duration-300">
+          <AlertCircle className="h-6 w-6 shrink-0" />
+          <p className="font-medium">{error}</p>
         </div>
       )}
     </div>

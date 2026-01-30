@@ -10,58 +10,66 @@ class LeadRanker:
     @staticmethod
     def rank(leads: List[NormalizedLead]) -> List[NormalizedLead]:
         """
-        Sort leads by confidence score descending and deduplicate.
-        Deduplication key: (company_name, role, location)
-        Keeps highest scoring instance of each unique lead.
+        Ranks leads by score and enforces quality invariants:
+        1. Semantic Deduplication (Company + Normalized Role + Location)
+        2. Result Density Control (Max 3 leads per company)
         """
         if not leads:
             return []
         
-        # First, sort by confidence score descending
+        # Constants
+        MAX_LEADS_PER_COMPANY = 3
+        
+        # 1. Sort by confidence score descending
         sorted_leads = sorted(leads, key=lambda x: x.confidence_score, reverse=True)
         
-        # Deduplicate by (company, role, location)
-        seen: Dict[Tuple[str, str, str], NormalizedLead] = {}
-        deduplicated = []
+        # 2. Group by company and deduplicate semantically
+        company_buckets: Dict[str, List[NormalizedLead]] = {}
+        seen_keys = set()
+        
+        deduplicated_count = 0
         
         for lead in sorted_leads:
-            # Create deduplication key with safe handling of missing fields
-            # Use empty string as default for missing role/location
-            company_key = lead.company_name.lower().strip() if lead.company_name else ""
-            role_key = lead.role.lower().strip() if hasattr(lead, 'role') and lead.role else ""
-            location_key = lead.location.lower().strip() if hasattr(lead, 'location') and lead.location else ""
+            # Normalize keys for grouping
+            company_key = lead.company_name.lower().strip()
             
-            key = (company_key, role_key, location_key)
+            # Create a semantic role key: "Python Developer" == "Python Dev" (approx)
+            # We strip common tech suffixes for the comparison key
+            role_key = lead.role.lower().strip()
+            role_key = role_key.replace("developer", "dev").replace("engineer", "eng")
             
-            # Skip if company is empty (invalid lead)
-            if not company_key:
-                logger.warning("Skipping lead with empty company name during deduplication")
+            location_key = lead.location.lower().strip()
+            
+            # Intra-company duplicate key
+            identity_key = (company_key, role_key, location_key)
+            
+            if identity_key in seen_keys:
+                deduplicated_count += 1
                 continue
             
-            # Keep first occurrence (highest score due to sorting)
-            if key not in seen:
-                seen[key] = lead
-                deduplicated.append(lead)
-        
-        duplicates_removed = len(sorted_leads) - len(deduplicated)
-        if duplicates_removed > 0:
-            logger.info(f"Deduplication removed {duplicates_removed} duplicate leads",
-                       original_count=len(sorted_leads),
-                       unique_count=len(deduplicated))
-        
-        # Invariant check: Ensure no duplicates in output
-        dedup_keys = set()
-        for lead in deduplicated:
-            company_key = lead.company_name.lower().strip() if lead.company_name else ""
-            role_key = lead.role.lower().strip() if hasattr(lead, 'role') and lead.role else ""
-            location_key = lead.location.lower().strip() if hasattr(lead, 'location') and lead.location else ""
-            key = (company_key, role_key, location_key)
+            seen_keys.add(identity_key)
             
-            if key in dedup_keys:
-                logger.error("INVARIANT VIOLATION: Duplicate found in deduplicated output",
-                           company=lead.company_name,
-                           role=getattr(lead, 'role', 'N/A'),
-                           location=getattr(lead, 'location', 'N/A'))
-            dedup_keys.add(key)
+            # Ad to company bucket
+            if company_key not in company_buckets:
+                company_buckets[company_key] = []
+            
+            # Apply density limit
+            if len(company_buckets[company_key]) < MAX_LEADS_PER_COMPANY:
+                company_buckets[company_key].append(lead)
+            else:
+                # Discard as density overflow
+                continue
+                
+        # 3. Re-assemble and re-sort (maintains overall score order)
+        final_leads = []
+        for bucket in company_buckets.values():
+            final_leads.extend(bucket)
+            
+        final_leads = sorted(final_leads, key=lambda x: x.confidence_score, reverse=True)
         
-        return deduplicated
+        logger.info(f"Deduplication & Density Check complete", 
+                   original=len(leads), 
+                   final=len(final_leads),
+                   semantic_duplicates=deduplicated_count)
+        
+        return final_leads

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Grid, List, Download, Filter } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Grid, List, Download, Filter, Search, Sparkles, TrendingUp, Users } from 'lucide-react';
 import LeadTable from '../components/LeadTable.jsx';
 import LeadCard from '../components/LeadCard.jsx';
-import useLeadStore from '../store/leadStore.js';
-import useAuthStore from '../store/authStore.js';
+import { useLeadStore } from '../store/leadStore.js';
+import { useAuthStore } from '../store/authStore.js';
 
 const Leads = () => {
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+  const [viewMode, setViewMode] = useState('table');
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const { user } = useAuthStore();
   const {
@@ -53,70 +55,60 @@ const Leads = () => {
     }
   };
 
-  const getStats = () => {
+  const stats = (() => {
     const total = leads.length;
     const highScore = leads.filter(lead => lead.score >= 80).length;
     const avgScore = total > 0
       ? Math.round(leads.reduce((sum, lead) => sum + lead.score, 0) / total)
       : 0;
-
     return { total, highScore, avgScore };
-  };
-
-  const stats = getStats();
+  })();
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-accent-indigo"></div>
+        <p className="text-slate-400 animate-pulse">Retrieving market intelligence...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8 pb-32">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Hiring Leads</h1>
-          <p className="text-gray-600 mt-1">
-            AI-discovered companies actively hiring for your target roles
+          <h1 className="text-4xl font-bold text-white tracking-tight">Intelligence Bank</h1>
+          <p className="text-slate-400 mt-2 text-lg">
+            A curated repository of high-signal hiring leads discovered by your agents.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {/* View Mode Toggle */}
-          <div className="flex rounded-lg border border-gray-200 p-1">
+        <div className="flex items-center gap-4">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded ${
-                viewMode === 'table'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`p-2.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-accent-indigo text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                }`}
             >
-              <List className="h-4 w-4" />
+              <List className="h-5 w-5" />
             </button>
             <button
               onClick={() => setViewMode('cards')}
-              className={`p-1.5 rounded ${
-                viewMode === 'cards'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`p-2.5 rounded-lg transition-all ${viewMode === 'cards' ? 'bg-accent-indigo text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                }`}
             >
-              <Grid className="h-4 w-4" />
+              <Grid className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Export Button */}
           {leads.length > 0 && (
             <button
               onClick={handleExport}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white font-semibold hover:bg-white/10 transition-all"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+              <Download className="h-5 w-5 text-accent-emerald" />
+              <span>Export CSV</span>
             </button>
           )}
         </div>
@@ -124,108 +116,76 @@ const Leads = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="stats-card">
-          <div className="flex items-center justify-between">
+        {[
+          { label: 'Total Leads', value: stats.total, icon: <Users />, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+          { label: 'Prime Targets', value: stats.highScore, icon: <Sparkles />, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { label: 'Avg Match', value: `${stats.avgScore}%`, icon: <TrendingUp />, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+        ].map((stat, i) => (
+          <div key={i} className="glass-card p-6 flex items-center justify-between border-white/5">
             <div>
-              <p className="stats-label">Total Leads</p>
-              <p className="stats-number">{stats.total}</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
+              <p className="text-3xl font-bold text-white">{stat.value}</p>
             </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <List className="h-6 w-6 text-blue-600" />
+            <div className={`p-4 ${stat.bg} ${stat.color} rounded-2xl`}>
+              {stat.icon}
             </div>
           </div>
-        </div>
-
-        <div className="stats-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="stats-label">High-Score Leads</p>
-              <p className="stats-number">{stats.highScore}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <Filter className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="stats-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="stats-label">Average Score</p>
-              <p className="stats-number">{stats.avgScore}</p>
-            </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
-              <Download className="h-6 w-6 text-yellow-600" />
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="rounded-md bg-danger-50 p-4">
-          <div className="flex">
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-danger-800">
-                Error loading leads
-              </h3>
-              <div className="mt-2 text-sm text-danger-700">
-                {error}
-              </div>
-              <div className="mt-4">
-                <div className="-mx-2 -my-1.5 flex">
-                  <button
-                    onClick={clearError}
-                    className="bg-danger-50 px-2 py-1.5 rounded-md text-sm font-medium text-danger-800 hover:bg-danger-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-danger-50 focus:ring-danger-600"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </div>
+        <div className="glass-card p-6 border-red-500/20 bg-red-500/5 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-red-400">
+            <Filter className="h-6 w-6" />
+            <p className="font-medium">{error}</p>
           </div>
+          <button onClick={clearError} className="text-slate-400 hover:text-white underline text-sm">Dismiss</button>
         </div>
       )}
 
-      {/* Leads Display */}
-      {leads.length > 0 ? (
-        viewMode === 'table' ? (
-          <LeadTable
-            leads={leads}
-            onFeedback={handleFeedback}
-            onExport={handleExport}
-          />
+      {/* Leads Content Area */}
+      <div className="glass-card overflow-hidden">
+        {leads.length > 0 ? (
+          <div className="p-1">
+            {viewMode === 'table' ? (
+              <div className="overflow-x-auto">
+                <LeadTable
+                  leads={leads}
+                  onFeedback={handleFeedback}
+                  onExport={handleExport}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+                {leads.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onFeedback={handleFeedback}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {leads.map((lead) => (
-              <LeadCard
-                key={lead.id}
-                lead={lead}
-                onFeedback={handleFeedback}
-              />
-            ))}
+          <div className="text-center py-24 px-8">
+            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Search className="h-10 w-10 text-slate-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">The reservoir is empty</h3>
+            <p className="text-slate-400 mb-8 max-w-md mx-auto">
+              You haven't discovered any hiring leads yet. Deploy your first intelligence agent to start scanning the market.
+            </p>
+            <button
+              onClick={() => navigate('/run-agent')}
+              className="btn-primary"
+            >
+              Deploy First Agent
+            </button>
           </div>
-        )
-      ) : (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No leads yet</h3>
-          <p className="text-gray-600 mb-4">
-            Run the AI agent to discover companies actively hiring for your target roles.
-          </p>
-          <a
-            href="/run-agent"
-            className="btn-primary inline-flex items-center"
-          >
-            <List className="h-4 w-4 mr-2" />
-            Run AI Agent
-          </a>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
