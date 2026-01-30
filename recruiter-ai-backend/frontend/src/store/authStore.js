@@ -98,6 +98,7 @@ const useAuthStore = create((set, get) => ({
 
   logout: () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('recruiter_id')
     set({
       user: null,
       token: null,

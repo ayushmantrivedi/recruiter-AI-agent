@@ -9,10 +9,10 @@ import LeadDetail from './pages/LeadDetail'
 import Metrics from './pages/Metrics'
 
 function App() {
-  const { token, user } = useAuthStore()
-  const isAuthenticated = !!token
+  const { token, user, isAuthenticated } = useAuthStore()
+  const isAuth = isAuthenticated()
 
-  if (!isAuthenticated) {
+  if (!isAuth) {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
