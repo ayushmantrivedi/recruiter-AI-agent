@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: recruiter-ai-agent
+    runtime: python
+    pythonVersion: 3.11.10
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
