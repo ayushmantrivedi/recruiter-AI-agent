@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ShieldCheck, User, ArrowRight, Sparkles, Loader2 } from 'lucide-react'
+import { Zap, User, ArrowRight, Sparkles, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 function Login() {
@@ -18,50 +18,60 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[#0a0f1d] relative overflow-hidden">
-      {/* Dynamic Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-indigo/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-emerald/5 rounded-full blur-[120px]" />
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Animated Background Orbs */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent-coral/10 rounded-full blur-3xl animate-float"
+          style={{ animationDelay: '0s' }} />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent-teal/8 rounded-full blur-3xl animate-float"
+          style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-accent-purple/6 rounded-full blur-3xl animate-float"
+          style={{ animationDelay: '4s' }} />
       </div>
 
-      <div className="w-full max-w-md relative">
-        {/* Logo Section */}
-        <div className="flex flex-col items-center mb-10">
-          <div className="w-16 h-16 bg-accent-indigo rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-500/40 mb-6">
-            <ShieldCheck className="h-10 w-10" />
+      <div className="w-full max-w-md relative z-10">
+        {/* Brand */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-accent-coral to-primary-600 rounded-2xl mb-6 shadow-lg shadow-accent-coral/30">
+            <Zap className="h-8 w-8 text-white" stroke-width={2.5} />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
-            Recruiter<span className="text-accent-indigo">AI</span>
+          <h1 className="text-4xl font-bold text-white mb-2">
+            Talent<span className="text-accent-coral">Scout</span>
           </h1>
-          <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em] mt-2">Intelligence Interface v2.0</p>
+          <p className="text-slate-500 font-medium">
+            Find your next great hire, faster
+          </p>
         </div>
 
         {/* Login Card */}
-        <div className="glass-card p-10 backdrop-blur-3xl border-white/10 shadow-2xl">
-          <div className="mb-8 text-center md:text-left">
-            <h2 className="text-xl font-bold text-white mb-2">Initialize Session</h2>
-            <p className="text-slate-500 text-sm font-medium italic">Enter your neural identity to access your isolated intelligence bank.</p>
+        <div className="glass-card p-8 glow-border">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-white mb-2">Welcome back</h2>
+            <p className="text-slate-400">
+              Sign in to continue your recruiting journey
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Access Protocol (Identity/ID)</label>
+              <label className="text-sm font-semibold text-slate-300 ml-1">
+                Your ID or Username
+              </label>
               <div className="relative group">
-                <User className="h-5 w-5 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-indigo transition-colors" />
+                <User className="h-5 w-5 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-accent-coral transition-colors" />
                 <input
                   type="text"
                   value={identity}
                   onChange={(e) => setIdentity(e.target.value)}
-                  placeholder="e.g. user123 or julie"
-                  className="input-field pl-12 py-4"
+                  placeholder="Enter your ID or username"
+                  className="input-field w-full pl-12"
                   required
                 />
               </div>
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-bold text-center">
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -69,33 +79,40 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-4 text-lg group/btn disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full group disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-2.5">
                 {loading ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Authorizing...</span>
+                    <span>Signing you in...</span>
                   </>
                 ) : (
                   <>
-                    <span>Direct Access</span>
-                    <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    <span>Get Started</span>
+                    <ArrowRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
                   </>
                 )}
               </div>
             </button>
           </form>
 
-          <div className="mt-10 pt-8 border-t border-white/5 flex flex-col items-center gap-4">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-              <Sparkles className="h-3 w-3" />
-              <span>Isolated Data Partition Active</span>
+          <div className="mt-8 pt-6 border-t border-slate-700/50">
+            <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+              <Sparkles className="h-4 w-4 text-accent-teal" />
+              <span>No password needed • Secure access</span>
             </div>
-            <p className="text-slate-600 text-xs font-medium italic text-center">
-              No password required. Access is tied to your unique identity.
-            </p>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-sm text-slate-500">
+            First time here?{' '}
+            <span className="text-accent-coral font-semibold cursor-pointer hover:underline">
+              Learn more
+            </span>
+          </p>
         </div>
       </div>
     </div>

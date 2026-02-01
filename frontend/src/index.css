@@ -6,10 +6,15 @@
 
   html,
   body {
-    @apply bg-bg-main text-slate-100 font-body;
+    background-color: #0B1120;
+    color: rgb(241, 245, 249);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
     background-image:
-      radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
-      radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+      radial-gradient(circle at 20% 10%, rgba(250, 121, 112, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(45, 212, 191, 0.06) 0%, transparent 50%),
+      radial-gradient(circle at 40% 60%, rgba(167, 139, 250, 0.04) 0%, transparent 60%);
+    background-attachment: fixed;
     min-height: 100vh;
   }
 
@@ -17,33 +22,188 @@
   h2,
   h3,
   h4 {
-    @apply font-heading;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
 
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
-    @apply w-2;
+    width: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-slate-800 rounded-full hover:bg-slate-700 transition-colors;
+    background: rgba(51, 78, 104, 0.5);
+    border-radius: 9999px;
+    transition: background 200ms;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(51, 78, 104, 0.7);
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-bg-card backdrop-blur-glass border border-white/10 rounded-2xl shadow-2xl;
+    background-color: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.00));
   }
 
   .btn-primary {
-    @apply bg-accent-indigo text-white px-6 py-3 rounded-xl font-semibold transform hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/20 active:scale-95 transition-all duration-200;
+    background: linear-gradient(to right, #FA7970, #de3730);
+    color: white;
+    padding: 0.875rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transform: scale(1);
+    transition: all 200ms;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-primary:hover {
+    transform: scale(1.02);
+    box-shadow: 0 20px 25px -5px rgba(250, 121, 112, 0.25), 0 10px 10px -5px rgba(250, 121, 112, 0.25);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.95);
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(100%);
+    transition: transform 200ms;
+  }
+
+  .btn-primary:hover::before {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    color: rgb(203, 213, 225);
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    transition: all 200ms;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(51, 65, 85, 0.5);
+    border-color: rgba(71, 85, 105, 0.5);
+    color: white;
+  }
+
+  .btn-secondary:active {
+    transform: scale(0.95);
   }
 
   .input-field {
-    @apply bg-black/30 border border-white/5 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-accent-indigo focus:border-transparent transition-all;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    color: white;
+    transition: all 200ms;
   }
+
+  .input-field::placeholder {
+    color: rgb(100, 116, 139);
+  }
+
+  .input-field:focus {
+    outline: none;
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(250, 121, 112, 0.5);
+    box-shadow: 0 0 0 3px rgba(250, 121, 112, 0.5);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-coral {
+    background: rgba(250, 121, 112, 0.15);
+    color: #FA7970;
+    border: 1px solid rgba(250, 121, 112, 0.2);
+  }
+
+  .badge-teal {
+    background: rgba(45, 212, 191, 0.15);
+    color: #2DD4BF;
+    border: 1px solid rgba(45, 212, 191, 0.2);
+  }
+
+  .badge-purple {
+    background: rgba(167, 139, 250, 0.15);
+    color: #A78BFA;
+    border: 1px solid rgba(167, 139, 250, 0.2);
+  }
+
+  /* Unique hover card effect */
+  .hover-lift {
+    transition: all 300ms;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Accent border glow */
+  .glow-border {
+    position: relative;
+  }
+
+  .glow-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(to right, #FA7970, #A78BFA, #2DD4BF);
+    border-radius: 1.5rem;
+    opacity: 0;
+    filter: blur(8px);
+    z-index: -1;
+    transition: opacity 300ms;
+  }
+
+  .glow-border:hover::before {
+    opacity: 0.2;
+  }
+}
+
+/* Loading animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(to right, transparent 0%, rgba(250, 121, 112, 0.1) 50%, transparent 100%);
+  background-size: 1000px 100%;
 }
