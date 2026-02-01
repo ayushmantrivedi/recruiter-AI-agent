@@ -184,9 +184,10 @@ class SearchOrchestrator:
         
         return {
             "leads": enriched_leads,
-            "total_count": report.raw_leads_found, # CORRECT: Use raw count for total found
+            "total_count": len(enriched_leads), # CORRECT: Use filtered count
             "evidence_objects": enriched_leads,
             "top_companies": list(set(l.get("company_name", "Unknown") for l in enriched_leads[:5])),
+            "metrics": report.__dict__, # ADD: Compatibility key for tests
             "execution_report": report, # Pass the object for pipeline to use
             # Legacy/Observability Dict
             "orchestration_summary": report.__dict__

@@ -15,7 +15,7 @@ async def test_total_leads_found_accuracy():
     query = "senior python developer in Bangalore"
     
     # Get intelligence
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -48,7 +48,7 @@ async def test_total_leads_found_greater_or_equal():
     """Verify total_leads_found >= len(leads) invariant."""
     query = "machine learning engineer"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -80,7 +80,7 @@ async def test_api_response_has_required_fields():
     """Verify API response contains all required fields."""
     query = "data analyst"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -120,7 +120,7 @@ async def test_deduplication_metrics_present():
     """Verify deduplication metrics are included in response."""
     query = "software engineer"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -168,7 +168,7 @@ async def test_lead_has_required_fields():
     """Verify each lead has required fields."""
     query = "backend developer"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -216,7 +216,7 @@ async def test_no_duplicate_companies_in_output():
     """Verify no duplicate companies in final output."""
     query = "full stack engineer"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
@@ -256,7 +256,7 @@ async def test_score_distribution_has_variance():
     """Verify scores have meaningful variance."""
     query = "devops engineer"
     
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {

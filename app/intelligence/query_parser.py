@@ -48,7 +48,8 @@ class AsyncQueryParser:
     
     LOCATION_KEYWORDS = {
         'remote', 'onsite', 'hybrid', 'sf', 'nyc', 'seattle', 'austin',
-        'boston', 'london', 'berlin', 'bangalore', 'singapore', 'tokyo'
+        'boston', 'london', 'berlin', 'bangalore', 'singapore', 'tokyo',
+        'san francisco', 'new york', 'sf', 'nyc'
     }
     
     async def parse(self, query: str) -> dict:
@@ -104,6 +105,11 @@ class AsyncQueryParser:
     
     def _extract_location(self, tokens: list, normalized: str) -> str:
         """Extract location from query."""
+        if 'san francisco' in normalized or 'sf' in normalized:
+            return "San Francisco"
+        if 'new york' in normalized or 'nyc' in normalized:
+            return "New York"
+            
         for loc in self.LOCATION_KEYWORDS:
             if loc in normalized:
                 return loc.title()

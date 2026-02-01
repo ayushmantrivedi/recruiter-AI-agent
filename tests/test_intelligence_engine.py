@@ -30,37 +30,41 @@ def test_extraction_complex():
     assert profile.seniority == "Senior"
 
 # 3. Signal Ordering Test
-def test_signal_ordering():
+@pytest.mark.asyncio
+async def test_signal_ordering():
     # Urgently need senior AI engineers -> High pressure
-    res1 = IntelligenceEngine.process("Urgently need senior AI engineers")
+    res1 = await IntelligenceEngine.process("Urgently need senior AI engineers")
     
     # Find junior frontend devs -> Lower pressure
-    res2 = IntelligenceEngine.process("Find junior frontend devs")
+    res2 = await IntelligenceEngine.process("Find junior frontend devs")
     
     assert res1.hiring_pressure > res2.hiring_pressure
     assert res1.role_scarcity > res2.role_scarcity
 
 # 4. Stability Test
-def test_stability():
+@pytest.mark.asyncio
+async def test_stability():
     query = "Looking for Senior Data Scientist in Bangalore"
-    first_result = IntelligenceEngine.process(query)
+    first_result = await IntelligenceEngine.process(query)
     
     for _ in range(10):
-        res = IntelligenceEngine.process(query)
+        res = await IntelligenceEngine.process(query)
         assert res.hiring_pressure == first_result.hiring_pressure
         assert res.role_scarcity == first_result.role_scarcity
         assert res.market_difficulty == first_result.market_difficulty
         assert res.role == first_result.role
 
 # 5. Boundary Test
-def test_boundary_general():
-    res = IntelligenceEngine.process("hii")
+@pytest.mark.asyncio
+async def test_boundary_general():
+    res = await IntelligenceEngine.process("hii")
     assert res.intent == "GENERAL"
     assert res.hiring_pressure < 0.2  # Should be low for general intent
 
 # 6. Robustness Test
-def test_robustness():
-    res = IntelligenceEngine.process("Looking 4 ML devs in Blr ASAP")
+@pytest.mark.asyncio
+async def test_robustness():
+    res = await IntelligenceEngine.process("Looking 4 ML devs in Blr ASAP")
     assert res.intent == "HIRING" # "Looking"
     assert res.role == "ML Engineer" # "ML" maps to ML Engineer
     assert res.location == "Bangalore" # "Blr" maps to Bangalore

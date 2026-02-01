@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 3000,  // Try a different port
+    port: 3000,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -17,5 +17,11 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    // Exclude Playwright E2E tests from Vitest
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**', '**/*.e2e.spec.js', '**/*-e2e.spec.js']
   }
 })

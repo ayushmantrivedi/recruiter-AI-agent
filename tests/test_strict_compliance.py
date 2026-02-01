@@ -12,10 +12,11 @@ from app.main import app
 # Phase 1: Deterministic Intelligence Tests
 # ==========================================
 
-def test_determinism():
+@pytest.mark.asyncio
+async def test_determinism():
     """Test 1: Stability Test (No randomness)"""
     query = "Urgently need senior AI engineers in Bangalore"
-    results = [IntelligenceEngine.process(query) for _ in range(20)]
+    results = await asyncio.gather(*[IntelligenceEngine.process(query) for _ in range(20)])
 
     first = results[0]
     for r in results[1:]:
@@ -25,30 +26,33 @@ def test_determinism():
         assert r.intent == first.intent
         assert r.role == first.role
 
-def test_sensitivity():
+@pytest.mark.asyncio
+async def test_sensitivity():
     """Test 2: Sensitivity Test (Small change -> small shift)"""
     q1 = "Find junior frontend developers in Jaipur"
     q2 = "Find senior frontend developers in Jaipur"
 
-    r1 = IntelligenceEngine.process(q1)
-    r2 = IntelligenceEngine.process(q2)
+    r1 = await IntelligenceEngine.process(q1)
+    r2 = await IntelligenceEngine.process(q2)
 
     # Seniority should increase hiring pressure
     assert r2.hiring_pressure > r1.hiring_pressure
 
-def test_location_competition():
+@pytest.mark.asyncio
+async def test_location_competition():
     """Test 3: Location Intelligence"""
-    bangalore = IntelligenceEngine.process("Find AI engineers in Bangalore")
-    indore = IntelligenceEngine.process("Find AI engineers in Indore")
+    bangalore = await IntelligenceEngine.process("Find AI engineers in Bangalore")
+    indore = await IntelligenceEngine.process("Find AI engineers in Indore")
     
     # Bangalore (Tier 1) should start with higher difficulty/competition than Indore (Tier 2/3)
     # Note: Indore might default to 'Remote' or generic if not in map, but Bangalore is explicitly high
     assert bangalore.market_difficulty > indore.market_difficulty
 
-def test_intent_control():
+@pytest.mark.asyncio
+async def test_intent_control():
     """Test 4: Intent Control"""
-    hiring = IntelligenceEngine.process("Find ML engineers in Pune")
-    salary = IntelligenceEngine.process("What is ML engineer salary in Pune")
+    hiring = await IntelligenceEngine.process("Find ML engineers in Pune")
+    salary = await IntelligenceEngine.process("What is ML engineer salary in Pune")
 
     assert hiring.intent == "HIRING"
     assert salary.intent == "SALARY"
@@ -58,27 +62,30 @@ def test_intent_control():
 # Phase 2: NLP Robustness Tests
 # ==========================================
 
-def test_broken_grammar():
+@pytest.mark.asyncio
+async def test_broken_grammar():
     """Test 5: Broken Grammar"""
     query = "need 4 ai dev blr asap"
-    r = IntelligenceEngine.process(query)
+    r = await IntelligenceEngine.process(query)
 
     assert r.role == "AI Engineer" or r.role == "ML Engineer" # AI map to AI Engineer
     assert r.location == "Bangalore"
     assert r.intent == "HIRING"
 
-def test_aliases():
+@pytest.mark.asyncio
+async def test_aliases():
     """Test 6: Slang + Shortcuts"""
     query = "Looking 4 ML devs in Blr"
-    r = IntelligenceEngine.process(query)
+    r = await IntelligenceEngine.process(query)
 
     assert r.role == "ML Engineer"
     assert r.location == "Bangalore"
 
-def test_noise():
+@pytest.mark.asyncio
+async def test_noise():
     """Test 7: Noise Injection"""
     query = "Hey buddy pls help me find some good senior backend engineers in delhi ok?"
-    r = IntelligenceEngine.process(query)
+    r = await IntelligenceEngine.process(query)
 
     assert r.role == "Backend Engineer"
     assert r.location == "Delhi"

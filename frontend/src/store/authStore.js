@@ -10,9 +10,10 @@ const useAuthStore = create((set, get) => ({
   // Check if user is authenticated (either by token or recruiter_id)
   isAuthenticated: () => {
     const hasUser = get().user !== null
+    const hasToken = get().token !== null
     const hasRecruiterId = localStorage.getItem('recruiter_id') !== null
-    console.log('Auth check - hasUser:', hasUser, 'hasRecruiterId:', hasRecruiterId)
-    return hasUser || hasRecruiterId
+    // In local demo, we allow access if we have any form of ID
+    return hasUser || hasToken || hasRecruiterId
   },
 
   // Force re-render by updating state
@@ -122,13 +123,9 @@ const useAuthStore = create((set, get) => ({
         error: null
       })
     } catch (error) {
-      localStorage.removeItem('token')
-      set({
-        user: null,
-        token: null,
-        loading: false,
-        error: null
-      })
+      // Don't clear session in dev mode if it's just a token expiry
+      console.warn('Auth profile check failed, keeping session if possible')
+      set({ loading: false })
     }
   },
 

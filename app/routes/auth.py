@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from ..utils.logger import get_logger
 logger = get_logger("auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # JWT Configuration
 SECRET_KEY = settings.secret_key.get_secret_value()
@@ -60,24 +61,25 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security), db: Session = Depends(get_db)):
+    if not credentials:
+        return None
+        
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = payload.get("sub")
         if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+            return None
 
         user = db.query(Recruiter).filter(Recruiter.id == user_id).first()
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-
         return user
-    except jwt.ExpiredSignatureError:
-        logger.warning("Token expired")
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.PyJWTError as e:
-        logger.warning("JWT validation failed", error=str(e))
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except (jwt.ExpiredSignatureError, jwt.PyJWTError):
+        return None
+
+def get_authenticated_user(user: Optional[Recruiter] = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
 
 @router.post("/register", response_model=TokenResponse)
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):

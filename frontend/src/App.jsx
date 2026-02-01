@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Login'
@@ -9,8 +10,12 @@ import LeadDetail from './pages/LeadDetail'
 import Metrics from './pages/Metrics'
 
 function App() {
-  const { token, user, isAuthenticated } = useAuthStore()
+  const { token, user, isAuthenticated, checkAuth } = useAuthStore()
   const isAuth = isAuthenticated()
+
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
 
   if (!isAuth) {
     return (

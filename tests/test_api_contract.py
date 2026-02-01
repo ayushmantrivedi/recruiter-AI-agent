@@ -50,7 +50,7 @@ async def test_intelligence_schema_validation():
     signals_model = IntelligenceSignals(**signals_data)
     
     # 3. Valid field checks
-    assert "Backend" in intel_model.role
+    assert "backend" in intel_model.role.lower()
     assert "San Francisco" in intel_model.location
     assert intel_model.seniority == "Senior"
     

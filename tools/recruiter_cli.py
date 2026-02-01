@@ -169,7 +169,7 @@ def health():
 
 @app.command()
 def query(
-    query_text: str = typer.Argument(..., help="The recruiter search query"),
+    query_text: str = typer.Argument(...),
     recruiter: Optional[str] = typer.Option(None, "--recruiter", "-r", help="Recruiter ID"),
     wait: bool = typer.Option(False, "--wait", "-w", help="Wait for query completion"),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
@@ -242,7 +242,7 @@ def query(
 
 
 @app.command()
-def status(query_id: str = typer.Argument(..., help="Query ID to check")):
+def status(query_id: str = typer.Argument(...)):
     """Check the status of a query."""
     try:
         client = get_client()
@@ -276,7 +276,7 @@ def status(query_id: str = typer.Argument(..., help="Query ID to check")):
 
 @app.command()
 def results(
-    query_id: str = typer.Argument(..., help="Query ID to get results for"),
+    query_id: str = typer.Argument(...),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
 ):
     """Get the results of a completed query."""
@@ -344,7 +344,7 @@ def _display_query_results(result: dict):
 
 @app.command()
 def config_cmd(
-    key: str = typer.Argument(..., help="Configuration key"),
+    key: str = typer.Argument(...),
     value: Optional[str] = typer.Argument(None, help="Configuration value"),
 ):
     """Get or set configuration values."""

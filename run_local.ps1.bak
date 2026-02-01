@@ -1,0 +1,43 @@
+# Recruiter AI Platform - Local Demo Run Script (Windows)
+
+Write-Host "🚀 Starting Recruiter AI Platform Local Demo..." -ForegroundColor Cyan
+
+# 1. Initialize Backend
+Write-Host "`n📦 Setting up Backend..." -ForegroundColor Yellow
+if (-not (Test-Path ".env")) {
+    Write-Host "⚠️ .env not found. Creating from env.example..." -ForegroundColor Gray
+    Copy-Item "env.example" ".env"
+}
+
+# Ensure SQLite DB exists
+if (-not (Test-Path "recruiter_ai.db")) {
+    Write-Host "📂 Initializing SQLite database..." -ForegroundColor Gray
+    python -c "from app.database import create_tables; create_tables()"
+}
+
+# Start Backend in a new window
+Write-Host "⚡ Starting Backend API on http://localhost:8000" -ForegroundColor Green
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000" -WindowStyle Normal
+
+# 2. Initialize Frontend
+Write-Host "`n🎨 Setting up Frontend..." -ForegroundColor Yellow
+Set-Location "frontend"
+
+if (-not (Test-Path "node_modules")) {
+    Write-Host "📥 Installing frontend dependencies (npm install)..." -ForegroundColor Gray
+    npm install
+}
+
+if (-not (Test-Path ".env.local")) {
+    Write-Host "⚠️ .env.local not found. Creating..." -ForegroundColor Gray
+    "VITE_API_URL=http://localhost:8000" | Out-File -FilePath ".env.local" -Encoding utf8
+}
+
+# Start Frontend in a new window
+Write-Host "🌐 Starting Frontend UI on http://localhost:3000" -ForegroundColor Green
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "npm run dev" -WindowStyle Normal
+
+Write-Host "`n✅ Local Demo Environment is launching!" -ForegroundColor Cyan
+Write-Host "👉 Backend: http://localhost:8000/docs"
+Write-Host "👉 Frontend: http://localhost:3000"
+Write-Host "`nPlease keep both terminal windows open." -ForegroundColor Gray

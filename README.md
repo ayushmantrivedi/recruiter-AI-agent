@@ -49,21 +49,24 @@ docker-compose up -d
 curl http://localhost:8000/api/recruiter/health
 ```
 
-### Local Development
+#### Local Demo Mode (Fastest)
 
-1. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
+1. Run **`./run_local.ps1`** (Windows) or **`./run_local.sh`** (Mac/Linux).
+2. Open your browser to: **[http://localhost:8000/ui](http://localhost:8000/ui)**
 
-2. **Start services:**
-```bash
-# Terminal 1: Start PostgreSQL and Redis
-docker-compose up db redis -d
+This is the standard interface that requires zero setup. Just enter a name and start searching.
 
-# Terminal 2: Start the API
-python -m uvicorn app.main:app --reload
-```
+### Modern React Interface (Optional)
+
+If you want to use the new dashboard and metrics:
+1. Keep the server running above.
+2. In a new terminal:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+3. Open: **http://localhost:3000**
 
 3. **Run tests:**
 ```bash
@@ -198,28 +201,14 @@ docker-compose --profile monitoring up -d
 ## 🗂 Project Structure
 
 ```
-recruiter-ai-backend/
-├── app/
-│   ├── main.py              # FastAPI application
-│   ├── config.py            # Configuration management
-│   ├── database.py          # SQLAlchemy models
-│   ├── agents/              # AI agent implementations
-│   │   ├── concept_reasoner.py
-│   │   ├── action_orchestrator.py
-│   │   └── signal_judge.py
-│   ├── apis/                # External API integrations
-│   │   ├── job_apis.py
-│   │   └── news_apis.py
-│   ├── memory/              # Learning and state
-│   ├── services/            # Business logic
-│   │   └── pipeline.py
-│   ├── routes/              # API endpoints
-│   ├── utils/               # Utilities
-│   └── models/              # Pydantic models
-├── tests/                   # Test suite
-├── Dockerfile               # Container definition
-├── docker-compose.yml       # Orchestration
-├── requirements.txt         # Python dependencies
+├── app/                    # FastAPI application
+├── frontend/               # React + Vite UI
+├── tests/                  # Test suite
+├── render.yaml             # Render Blueprint
+├── run_local.ps1           # Windows Demo script
+├── run_local.sh            # Linux/macOS Demo script
+├── requirements.txt        # Python dependencies
+├── runtime.txt             # Python version
 └── README.md
 ```
 

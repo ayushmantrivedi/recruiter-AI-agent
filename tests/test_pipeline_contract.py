@@ -86,7 +86,7 @@ async def test_location_contract_end_to_end():
     query = "backend engineers in Pune"
     
     # Step 1: Intelligence extraction
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     assert intel_result.location == "Pune"
     
     # Step 2: Prepare envelope

@@ -1,13 +1,15 @@
 import { useNavigate } from "react-router-dom"
 import { Play, Grid, BarChart3, LogOut, Search } from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
 
 function Dashboard() {
   const recruiterId = localStorage.getItem("recruiter_id")
   const navigate = useNavigate()
+  const { logout } = useAuthStore()
 
-  const logout = () => {
-    localStorage.removeItem("recruiter_id")
-    window.location.href = "/login"
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
   }
 
   const cards = [
@@ -26,7 +28,7 @@ function Dashboard() {
           <p className="text-slate-400 text-lg">Platform Overview & Command Center</p>
         </div>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
         >
           <LogOut className="h-4 w-4" />

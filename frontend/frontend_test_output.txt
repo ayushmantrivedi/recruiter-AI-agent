@@ -1,0 +1,78 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mC:/Users/ayush/OneDrive/Desktop/AGENT 2/frontend[39m
+
+ [33mΓ¥»[39m tests/recruiter-e2e.spec.js [2m ([22m[2m0 test[22m[2m)[22m
+
+node.exe : 
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1m[7m 
+Failed Suites 1 
+[27m[22mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+At C:\Program Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+NotSpecifi    ed: 
+([31mΓÄ»ΓÄ»ΓÄ»Γ...»ΓÄ»ΓÄ»ΓÄ»[3    
+9m:String) [], RemoteException
+    + FullyQualifiedErrorId : 
+NativeComm    andError
+ 
+
+[31m[1m[7m FAIL [27m[22m[39m 
+tests/recruiter-e2e.spec.js [2m[ 
+tests/recruiter-e2e.spec.js ][22m
+[31m[1mError[22m: Playwright Test 
+did not expect test.describe() to be 
+called here.
+Most common reasons include:
+- You are calling test.describe() in 
+a configuration file.
+- You are calling test.describe() in 
+a file that is imported by the 
+configuration file.
+- You have two different versions of 
+@playwright/test. This usually happens
+  when one of the dependencies in 
+your package.json depends on 
+@playwright/test.[39m
+[90m [2mΓ¥»[22m 
+TestTypeImpl._currentSuite node_module
+s/playwright/lib/common/testType.js:[
+2m75:13[22m[39m
+[90m [2mΓ¥»[22m 
+TestTypeImpl._describe node_modules/pl
+aywright/lib/common/testType.js:[2m11
+5:24[22m[39m
+[90m [2mΓ¥»[22m Function.describe n
+ode_modules/playwright/lib/transform/t
+ransform.js:[2m275:12[22m[39m
+[36m [2mΓ¥»[22m tests/recruiter-e2e
+.spec.js:[2m3:6[22m[39m
+    [90m  1| [39m[35mimport[39m { 
+test[33m,[39m expect } 
+[35mfrom[39m [32m'@playwright/test'
+[39m[33m;[39m
+    [90m  2| [39m
+    [90m  3| [39mtest[33m.[39m[34
+mdescribe[39m([32m'Recruiter AI 
+Platform E2E'[39m[33m,[39m () 
+[33m=>[39m {
+    [90m   | [39m     [31m^[39m
+    [90m  4| [39m  
+[34mtest[39m([32m'should complete 
+full query workflow'[39m[33m,[39m 
+[35masync[39m ({ page }) 
+[33m=>[39m {
+    [90m  5| [39m    [90m// Listen 
+for console messages[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ
+»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»[1/1]ΓÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [2mno tests[22m
+[2m   Start at [22m 18:55:56
+[2m   Duration [22m 1.77s[2m (transform 29ms, setup 0ms, collect 0ms, tests 0ms, environment 0ms, prepare 670ms)[22m
+

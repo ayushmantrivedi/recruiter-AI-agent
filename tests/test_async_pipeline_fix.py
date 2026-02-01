@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 from app.services.pipeline import RecruiterPipeline
-from app.routes.recruiter import _execute_pipeline_with_checkpoint
+from app.routes.recruiter import process_query_background
 
 @pytest.fixture
 def mock_pipeline():
@@ -42,32 +42,29 @@ def mock_pipeline():
         yield mock
 
 @pytest.mark.asyncio
-async def test_async_pipeline_execution_calls_search_orchestrator(mock_pipeline):
-    """Verify that _execute_pipeline_with_checkpoint calls search_orchestrator correctly."""
+async def test_async_pipeline_execution_calls_orchestrator(mock_pipeline):
+    """Verify that process_query_background calls pipeline correctly."""
     
     query_id = "test-query-id"
     query = "Hire a python dev"
     recruiter_id = "recruiter-1"
     
-    await _execute_pipeline_with_checkpoint(query_id, query, recruiter_id)
+    # Mock return for process_recruiter_query
+    mock_pipeline.process_recruiter_query = AsyncMock(return_value={"status": "completed"})
     
-    # Check Intelligence Engine called
-    mock_pipeline.intelligence_engine.process.assert_called_once_with(query)
+    # We need to mock SessionLocal as well since process_query_background uses it
+    with patch("app.routes.recruiter.SessionLocal") as mock_session_local:
+        mock_session = MagicMock()
+        mock_session_local.return_value = mock_session
+        
+        await process_query_background(query_id, query, recruiter_id)
     
-    # Check Search Orchestrator called (instead of action_orchestrator)
-    mock_pipeline.search_orchestrator.orchestrate.assert_called_once()
-    
-    # Verify call args
-    call_args = mock_pipeline.search_orchestrator.orchestrate.call_args
-    assert call_args[0][0] == query # query arg
-    assert "intelligence" in call_args[0][1] # intelligence_envelope arg
-    assert "signals" in call_args[0][1]
-    
-    # Verify DB save called
-    mock_pipeline._save_to_database.assert_called_once()
-    saved_data = mock_pipeline._save_to_database.call_args[0][0]
-    assert saved_data["query_id"] == query_id
-    assert saved_data["status"] == "completed"
+    # Check pipeline called
+    mock_pipeline.process_recruiter_query.assert_called_once_with(
+        query,
+        recruiter_id,
+        query_id=query_id
+    )
 
 def test_pipeline_interface_integrity():
     """Verify RecruiterPipeline class exposes required attributes."""

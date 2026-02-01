@@ -191,7 +191,7 @@ async def test_end_to_end_hardening():
     query = "senior python developer in Bangalore"
     
     # Get intelligence
-    intel_result = IntelligenceEngine.process(query)
+    intel_result = await IntelligenceEngine.process(query)
     
     intelligence_envelope = {
         "intelligence": {
