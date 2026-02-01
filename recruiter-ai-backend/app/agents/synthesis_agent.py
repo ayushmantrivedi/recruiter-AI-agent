@@ -16,10 +16,11 @@ class SynthesisAgent:
     """
     
     def __init__(self):
-        # OpenRouter configuration (reads directly from env for flexibility)
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
-        self.model_name = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+        # OpenRouter configuration from centralized settings
+        self.api_key = settings.api.openrouter_api_key.get_secret_value() if settings.api.openrouter_api_key else None
+        self.model_name = settings.api.openrouter_model
         self.api_base = "https://openrouter.ai/api/v1/chat/completions"
+        self.referrer = settings.api.openrouter_referrer
         
         if not self.api_key:
             logger.warning("OPENROUTER_API_KEY not set. SynthesisAgent will use fallback responses.")
@@ -103,7 +104,7 @@ Keep it under 200 words. Be specific, not generic."""
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
-                        "HTTP-Referer": "http://localhost:8001",  # Required by OpenRouter
+                        "HTTP-Referer": self.referrer,  # Configurable referer
                         "X-Title": "Recruiter AI"  # Optional app name
                     },
                     json={

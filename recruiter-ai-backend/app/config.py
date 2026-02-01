@@ -44,6 +44,11 @@ class APISettings(BaseSettings):
     """API configuration settings."""
     openai_api_key: Optional[SecretStr] = Field(default=None, env="OPENAI_API_KEY")
     huggingface_token: Optional[SecretStr] = Field(default=None, env="HUGGINGFACE_TOKEN")
+    
+    # OpenRouter for executive briefings
+    openrouter_api_key: Optional[SecretStr] = Field(default=None, env="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(default="openai/gpt-3.5-turbo", env="OPENROUTER_MODEL")
+    openrouter_referrer: str = Field(default="http://localhost:8000", env="OPENROUTER_REFERRER")
 
     # Free API rate limits
     arbeitnow_rate_limit: int = Field(default=100, env="ARBEITNOW_RATE_LIMIT")
@@ -162,7 +167,7 @@ class Settings(BaseSettings):
 
     # API
     api_host: str = Field(default="0.0.0.0", env="API_HOST")
-    api_port: int = Field(default=8000, env="API_PORT")
+    api_port: int = Field(default=8000, validation_alias="PORT", env="API_PORT")
 
     # Billing
     billing_enabled: bool = Field(default=False, env="BILLING_ENABLED")
