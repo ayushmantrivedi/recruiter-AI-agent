@@ -1,256 +1,279 @@
 # Recruiter AI Platform
 
-Recruiter AI Platform is a production-grade agentic AI system that converts natural-language hiring queries into structured sourcing pipelines.
+A production-grade multi-agent intelligence platform for recruiters, built with FastAPI, PostgreSQL, and Redis. This system uses a Concept → Action → Judgment cognitive architecture to understand recruiter intent, orchestrate API actions intelligently, and produce ranked, explainable hiring leads.
 
-It supports async job orchestration, background AI processing, persistent storage, optional caching, REST API, HTML UI, and CLI interface.
+## 🧠 Architecture Overview
 
---------------------------------------------------
-SYSTEM OVERVIEW
---------------------------------------------------
+The system implements three specialized AI agents:
 
-Recruiter AI Platform allows recruiters to submit hiring queries like:
+### 1. Concept Reasoner (LCM + MLM)
+- **Purpose**: Convert vague recruiter intent into explicit concept constraints
+- **Technology**: HuggingFace Transformers (BERT) + OpenAI GPT reasoning
+- **Output**: Concept vectors (hiring_pressure, role_scarcity, outsourcing_likelihood) and structured constraints
 
-"Find senior AI engineers in Bangalore"
+### 2. Action Orchestrator (LAM Core)
+- **Purpose**: Core brain managing tool registry, execution policy, and feedback learning
+- **Features**: Tool selection, execution loop, confidence tracking, exit conditions
+- **Tools**: Arbeitnow Jobs, GitHub Jobs, News APIs, Company Metadata APIs
 
-The system processes the query using an AI pipeline:
-- Concept Reasoner
-- Action Orchestrator
-- Signal Judge
-- Lead Generator
+### 3. Signal Judge (Verifier)
+- **Purpose**: Score companies, rank leads, explain "why now"
+- **Method**: Evidence-first reasoning from API data
+- **Output**: Ranked leads with confidence scores and explanations
 
-Each query runs asynchronously, returns a UUID, and can be tracked until completion.
+## 🚀 Quick Start
 
---------------------------------------------------
-ARCHITECTURE
---------------------------------------------------
+### Prerequisites
+- Docker & Docker Compose
+- Python 3.10+ (for local development)
+- OpenAI API key (optional, fallback to rule-based reasoning)
+- HuggingFace token (optional)
 
-[CLI / HTML UI / API Client]
-            |
-            v
-        FastAPI Gateway
-            |
-            v
-     Async Job Orchestrator
-            |
-            v
-   AI Processing Pipeline
-   - Concept Reasoner (LLM)
-   - Action Orchestrator (Search APIs)
-   - Signal Judge (Ranking)
-            |
-            v
-       PostgreSQL Database
-       Redis Cache (optional)
+### Production Deployment
 
---------------------------------------------------
-FEATURES
---------------------------------------------------
+1. **Clone and configure:**
+```bash
+git clone <repository>
+cd recruiter-ai-backend
+cp env.example .env
+# Edit .env with your configuration
+```
 
-- Async job execution with UUID tracking
-- Background AI pipeline
-- Timeouts, retries, and zombie recovery
-- PostgreSQL persistence
-- Optional Redis caching
-- REST API (FastAPI)
-- HTML UI (HTMX)
-- CLI client (Typer)
-- Observability endpoints
-- Full test suite
+2. **Launch with Docker:**
+```bash
+docker-compose up -d
+```
 
---------------------------------------------------
-REPOSITORY STRUCTURE
---------------------------------------------------
+3. **Check health:**
+```bash
+curl http://localhost:8000/api/recruiter/health
+```
 
-recruiter-ai-backend/
-│
-├── app/
-│   ├── main.py
-│   ├── routes/
-│   ├── services/
-│   ├── database.py
-│   ├── config.py
-│   └── utils/
-│
-├── cli.py
-├── frontend/
-├── tests/
-├── requirements.txt
-└── README.md
+### Local Development
 
---------------------------------------------------
-INSTALLATION
---------------------------------------------------
-
-Prerequisites:
-- Python 3.10+
-- PostgreSQL
-- Redis (optional)
-
-Clone repository:
-git clone https://github.com/ayushmantrivedi/recruiter-AI-agent.git
-cd recruiter-AI-agent/recruiter-ai-backend
-
-Create virtual environment:
-python -m venv .venv
-
-Activate environment:
-Windows:
-.venv\Scripts\activate
-
-Linux / Mac:
-source .venv/bin/activate
-
-Install dependencies:
+1. **Install dependencies:**
+```bash
 pip install -r requirements.txt
+```
 
---------------------------------------------------
-DATABASE SETUP
---------------------------------------------------
+2. **Start services:**
+```bash
+# Terminal 1: Start PostgreSQL and Redis
+docker-compose up db redis -d
 
-Create database:
+# Terminal 2: Start the API
+python -m uvicorn app.main:app --reload
+```
 
-CREATE DATABASE recruiter_ai;
-CREATE USER recruiter_user WITH PASSWORD 'recruiter_password';
-GRANT ALL PRIVILEGES ON DATABASE recruiter_ai TO recruiter_user;
+3. **Run tests:**
+```bash
+pytest
+```
 
---------------------------------------------------
-ENV CONFIGURATION
---------------------------------------------------
+## 📡 API Usage
 
-Create .env file:
+### Process a Recruiter Query
 
-DATABASE_URL=postgresql://recruiter_user:recruiter_password@localhost:5432/recruiter_ai
-REDIS_URL=redis://localhost:6379
-LOG_LEVEL=info
-LLM_API_KEY=your_api_key_here
+```bash
+curl -X POST "http://localhost:8000/api/recruiter/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Find senior backend engineers in Bangalore",
+    "recruiter_id": "recruiter_123"
+  }'
+```
 
---------------------------------------------------
-START BACKEND
---------------------------------------------------
+**Response:**
+```json
+{
+  "query_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "original_query": "Find senior backend engineers in Bangalore",
+  "concept_vector": {
+    "hiring_pressure": 0.7,
+    "role_scarcity": 0.8,
+    "outsourcing_likelihood": 0.3
+  },
+  "constraints": {
+    "role": "backend engineer",
+    "region": "india",
+    "min_job_posts": 6,
+    "window_days": 63,
+    "exclude_enterprise": false
+  },
+  "leads": [
+    {
+      "company": "TechCorp India",
+      "score": 85,
+      "confidence": 0.82,
+      "reasons": [
+        "12 backend positions posted in 30 days",
+        "Recent engineering office opening",
+        "Mid-stage growth company"
+      ],
+      "evidence_count": 8
+    }
+  ],
+  "orchestration_summary": {
+    "confidence": 0.89,
+    "total_steps": 4,
+    "total_cost": 0.0,
+    "evidence_count": 24
+  }
+}
+```
 
-uvicorn app.main:app --reload
+### Get Query Status
 
-Open API Docs:
-http://localhost:8000/docs
+```bash
+curl "http://localhost:8000/api/recruiter/query/550e8400-e29b-41d4-a716-446655440000"
+```
 
---------------------------------------------------
-API USAGE (CMD)
---------------------------------------------------
+### Get Recruiter Statistics
 
-Submit Query:
+```bash
+curl "http://localhost:8000/api/recruiter/stats/recruiter_123"
+```
 
-curl -X POST http://localhost:8000/api/recruiter/query -H "Content-Type: application/json" -d "{\"query\":\"Find senior AI engineers in Bangalore\",\"recruiter_id\":\"2\"}"
+## 🛠 Configuration
 
-Check Status:
+### Environment Variables
 
-curl http://localhost:8000/api/recruiter/query/<query_id>
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENVIRONMENT` | development | Application environment |
+| `DB_HOST` | localhost | PostgreSQL host |
+| `REDIS_HOST` | localhost | Redis host |
+| `OPENAI_API_KEY` | - | OpenAI API key for reasoning |
+| `MAX_STEPS` | 10 | Maximum orchestration steps |
+| `CONFIDENCE_THRESHOLD` | 0.85 | Minimum confidence to stop |
+| `ARBEITNOW_RATE_LIMIT` | 100 | API rate limit per hour |
 
---------------------------------------------------
-POWERSHELL API USAGE
---------------------------------------------------
+### Tool Registry
 
-$body = @{ query = "Find senior AI engineers in Bangalore"; recruiter_id = "2" } | ConvertTo-Json
-Invoke-RestMethod -Method POST -Uri "http://localhost:8000/api/recruiter/query" -ContentType "application/json" -Body $body
+The system includes these free-first tools:
 
---------------------------------------------------
-OBSERVABILITY ENDPOINTS
---------------------------------------------------
+- **Arbeitnow Jobs**: Recent job postings (free, no key)
+- **GitHub Jobs**: Developer positions (free)
+- **Mediastack News**: Company news and signals (free tier)
+- **Company Metadata**: Enhanced company information (paid upgrade)
 
-Health:
-http://localhost:8000/api/recruiter/health
+## 🧪 Testing
 
-All Jobs:
-http://localhost:8000/api/recruiter/jobs
+### Unit Tests
+```bash
+pytest tests/unit/
+```
 
-Active Jobs:
-http://localhost:8000/api/recruiter/jobs/active
+### Integration Tests
+```bash
+pytest tests/integration/
+```
 
-Failed Jobs:
-http://localhost:8000/api/recruiter/jobs/failed
+### End-to-End Tests
+```bash
+pytest tests/e2e/
+```
 
-Zombie Jobs:
-http://localhost:8000/api/recruiter/jobs/zombie
+### Test Coverage
+```bash
+pytest --cov=app --cov-report=html
+```
 
---------------------------------------------------
-CLI CLIENT
---------------------------------------------------
+## 📊 Observability
 
-Submit query:
-python cli.py submit --query "Find ML engineers in Pune" --recruiter-id 2
+### Metrics
+- **Prometheus**: `/metrics` endpoint
+- **Health Check**: `/api/recruiter/health`
+- **Structured Logging**: JSON format with correlation IDs
 
-Check status:
-python cli.py status --query-id <uuid>
+### Monitoring
+```bash
+# Start monitoring stack
+docker-compose --profile monitoring up -d
 
---------------------------------------------------
-TESTING
---------------------------------------------------
+# Access Grafana at http://localhost:3000
+```
 
-Run all tests:
-pytest -q
+## 🗂 Project Structure
 
-Test groups:
-- API tests
-- Pipeline tests
-- UI tests
-- CLI tests
+```
+recruiter-ai-backend/
+├── app/
+│   ├── main.py              # FastAPI application
+│   ├── config.py            # Configuration management
+│   ├── database.py          # SQLAlchemy models
+│   ├── agents/              # AI agent implementations
+│   │   ├── concept_reasoner.py
+│   │   ├── action_orchestrator.py
+│   │   └── signal_judge.py
+│   ├── apis/                # External API integrations
+│   │   ├── job_apis.py
+│   │   └── news_apis.py
+│   ├── memory/              # Learning and state
+│   ├── services/            # Business logic
+│   │   └── pipeline.py
+│   ├── routes/              # API endpoints
+│   ├── utils/               # Utilities
+│   └── models/              # Pydantic models
+├── tests/                   # Test suite
+├── Dockerfile               # Container definition
+├── docker-compose.yml       # Orchestration
+├── requirements.txt         # Python dependencies
+└── README.md
+```
 
---------------------------------------------------
-RELIABILITY GUARANTEES
---------------------------------------------------
+## 🔒 Security
 
-- Per-job timeout
-- Retry with exponential backoff
-- Atomic database transactions
-- Zombie job recovery
-- Full pipeline instrumentation
-- Structured logging
+- **API Authentication**: JWT-based auth (recruiter routes)
+- **Input Validation**: Pydantic models with strict validation
+- **Rate Limiting**: Redis-based request throttling
+- **HTTPS**: SSL/TLS in production
+- **Secrets Management**: Environment-based configuration
 
---------------------------------------------------
-DEPLOYMENT
---------------------------------------------------
+## 💰 Business Model
 
-Recommended:
-- Docker + docker-compose
-- Kubernetes for scaling
-- External job queue (Redis Streams / RabbitMQ)
-- Prometheus + Grafana monitoring
+### Billing Tiers
+- **Free**: Basic queries, limited results
+- **Professional**: $29/month, advanced features, more results
+- **Enterprise**: Custom pricing, unlimited usage, priority support
 
---------------------------------------------------
-SECURITY
---------------------------------------------------
+### Cost Optimization
+- Free-first API strategy
+- Intelligent caching and rate limiting
+- Usage-based billing with cost controls
 
-- JWT authentication (recommended)
-- TLS in production
-- API rate limiting
-- PII protection
-- Prompt injection defense
+## 🚦 Production Checklist
 
---------------------------------------------------
-MONETIZATION
---------------------------------------------------
+- [ ] Environment variables configured
+- [ ] SSL certificates installed
+- [ ] Database migrations run
+- [ ] Redis persistence enabled
+- [ ] Monitoring alerts configured
+- [ ] Backup strategy implemented
+- [ ] Load balancer configured
+- [ ] Rate limiting tuned
+- [ ] API keys secured
 
-- SaaS subscription
-- API credits
-- Enterprise licensing
-- White-label deployments
+## 🤝 Contributing
 
---------------------------------------------------
-LICENSE
---------------------------------------------------
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-MIT License
+## 📄 License
 
---------------------------------------------------
-MAINTAINER
---------------------------------------------------
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Ayushman Trivedi
+## 🆘 Support
 
---------------------------------------------------
-FINAL NOTE
---------------------------------------------------
+- **Documentation**: See `/docs` endpoint for OpenAPI spec
+- **Issues**: GitHub Issues for bug reports
+- **Discussions**: GitHub Discussions for questions
+- **Email**: support@recruiter-ai.com
 
-This is a production-grade AI job orchestration platform.
-Designed for reliability, scalability, and real-world deployment.
+---
 
---------------------------------------------------
+**Built with ❤️ for recruiters who want to find the perfect candidates faster.**
