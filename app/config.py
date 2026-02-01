@@ -180,6 +180,16 @@ class Settings(BaseSettings):
     agent: AgentSettings = AgentSettings()
     logging: LoggingSettings = LoggingSettings()
 
+    @model_validator(mode='after')
+    def validate_production_env(self):
+        """Strictly enforce required variables in production."""
+        if self.environment == "production":
+            if not self.database.database_url:
+                raise ValueError("DATABASE_URL must be set in production environment")
+            if not self.redis.redis_url:
+                raise ValueError("REDIS_URL must be set in production environment")
+        return self
+
     class Config:
         env_file = ".env"
         case_sensitive = False
